@@ -5,7 +5,8 @@
     "types": [
       "jest",
       "react",
-      "react-native"
+      "react-native",
+      "node"
     ],
     "resolveJsonModule": true
   }

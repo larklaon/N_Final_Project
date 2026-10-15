@@ -1,1 +1,5 @@
-module.exports = { preset: 'jest-expo', testMatch: ['**/__tests__/**/*.test.[jt]s?(x)'], testPathIgnorePatterns: ['/node_modules/', '/android/'] };
+module.exports = {
+  preset: "jest-expo",
+  testMatch: ["**/__tests__/**/*.test.[jt]s?(x)"],
+  testPathIgnorePatterns: ["/node_modules/", "/android/"],
+};
