@@ -49,3 +49,8 @@ yarn-error.*
 *.aab
 /artifacts/
 /.impeccable/
+
+# Local module outputs
+**/build/
+**/.gradle/
+**/.cxx/
