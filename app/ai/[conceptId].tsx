@@ -128,7 +128,7 @@ function AiExplanationScreen() {
     };
     active.current = a;
     try {
-      const current = repo.snapshot();
+      let current = repo.snapshot();
       const model =
         current.settings.selectedModel &&
         models.some((m) => m.slug === current.settings.selectedModel)
@@ -136,6 +136,11 @@ function AiExplanationScreen() {
           : models[0]?.slug;
       if (!model)
         throw Error("먼저 ChatGPT를 연결하고 모델 목록을 불러와 주세요.");
+      if (current.settings.selectedModel !== model) {
+        repo.updateSettings({ selectedModel: model });
+        current = repo.snapshot();
+        refresh();
+      }
       const normalized = mode === "question" ? question.trim() : "";
       if (mode === "question" && (!normalized || normalized.length > 300))
         throw Error("질문은 1~300자로 입력해 주세요.");
@@ -193,6 +198,7 @@ function AiExplanationScreen() {
         a.learner !== repo.activeLearner
       )
         return;
+      a.question = input[input.length - 1].content;
       const result = await getSiwc().startResponse(
         JSON.stringify({
           profileId: auth.profileId,

@@ -310,7 +310,11 @@ export class LearningRepository {
       );
       if (graded) {
         const next = advanceProgress(p, correct, now, date, quiz.type);
-      next.distinctCorrectDays=this.db.getFirstSync<{n:number}>("SELECT COUNT(DISTINCT localDate) n FROM attempts WHERE learnerId=? AND conceptId=? AND isGraded=1 AND correct=1",learner,session.conceptId)!.n;
+        next.distinctCorrectDays = this.db.getFirstSync<{ n: number }>(
+          "SELECT COUNT(DISTINCT localDate) n FROM attempts WHERE learnerId=? AND conceptId=? AND isGraded=1 AND correct=1",
+          learner,
+          session.conceptId,
+        )!.n;
         this.db.runSync(
           "INSERT INTO concept_progress VALUES (?,?,?,?,?) ON CONFLICT(learnerId,conceptId) DO UPDATE SET dueAt=excluded.dueAt,revision=excluded.revision,data=excluded.data",
           learner,

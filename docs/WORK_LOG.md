@@ -1,5 +1,24 @@
 # 개발 기록
 
+## 2026-10-16 — M7.C2 — 개발용 APK와 인계
+
+- 상태: 개발용 MVP 구현·기본 개발 검증 완료. 독립 최종 검토·실제 계정·외부 배포는 별도.
+- 검증: TypeScript·ESLint·Jest17개·콘텐츠 구조60/120·Expo Doctor21/21 통과. Kotlin/JUnit9개, Android debug build, 에뮬레이터 UI 통합 흐름1개 통과.
+- 실제 경로: 온보딩→개념→객관식 선택·정답→오늘 진행1개→기록1개 확인. 프로세스 강제 종료 후 재실행에서도 학습 진도를 읽었다. 자정을 지난 뒤 오늘 진행은0으로 바뀌고 다음 개념은 기본키로 유지되어 날짜별 집계와 누적 진도를 구별했다.
+- APK: arm64-v8a 개발용, 92,447,876 bytes, checksum·경로는 VERIFICATION. Metro 서버가 필요하며 서명 배포용으로 보고하지 않는다.
+- 패치: 개발 도중 공식 권장 패치가 바뀌어 Expo57.0.30 / Router57.0.28로 맞추고 최종 빌드를 통과했다.
+- 디자인: UI UX Pro Max의 네이티브 터치·상태·접근성 지침, Impeccable Android/audit/adapt 지침을 소스와 실제 기본 화면에 적용했다. 전체 기기·큰 글씨·TalkBack 검증을 완료했다고 주장하지 않는다.
+- 제한: 실제 OAuth/AI completed·실기기 알림·개별 콘텐츠 출처 대조·의존성 보안 대응·외부 서명 배포는 남았다. 인간 모집·설문·피드백은 추후 과제 메모다.
+- 다음: Astra의 독립 코드·보안·화면 검토. 발견된 문제는 Sol6.1이 수정한 뒤 관련 검증을 반복한다.
+
+## 2026-10-15 — M7.C1 — 네이티브 빌드·개발 검증
+
+- 상태: Android debug APK 생성·설치·앱 시작 확인. UI smoke test 1개 통합 흐름 통과.
+- 검증: Kotlin/JUnit 9개 통과 (PKCE RFC 벡터, client ID 교체 거부, RSA JWT 신원 검증, SSE terminal/상한, loopback 경로·state 거부·포트 충돌).
+- 변경: 온보딩 safe area, 개념→퀴즈 스크롤 초기화, 큰 화면 tab 위치, 네이티브 키 유실 시 비민감 등록 mapping 보존. UI Automator smoke test를 CNG로 재현 가능하게 추가.
+- 제한: 개발용 APK는 Metro가 필요하다. 실제 OAuth·AI·실기기 알림, 서명된 외부 배포, 전체 콘텐츠 출처 대조는 미검증.
+- 다음: 최신 Expo 패치 정렬 후 개발용 APK checksum과 최종 원격 백업을 기록.
+
 ## 2026-10-15 — M2–M6.C1 — 학습 앱 기능 연결
 
 - 상태: TypeScript 기능 구현·자동 검사 완료, Android 실행 확인 진행 중.

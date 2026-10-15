@@ -5,14 +5,14 @@ import { useApp } from "../../src/platform/AppProvider";
 import { colors } from "../../src/theme/tokens";
 export default function TabLayout() {
   const { snapshot } = useApp();
-  const {width}=useWindowDimensions();
+  const { width } = useWindowDimensions();
   if (!snapshot.settings.onboarded) return <Redirect href="/" />;
   return (
     <Tabs
       screenOptions={{
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.textPrimary,
-        tabBarPosition: width>=840?"left":"bottom",
+        tabBarPosition: width >= 840 ? "left" : "bottom",
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: { backgroundColor: colors.surface },

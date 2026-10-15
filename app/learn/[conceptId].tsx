@@ -23,7 +23,7 @@ export default function Learn() {
   const concept = snapshot.concepts.find((c) => c.id === conceptId);
   if (!concept)
     return (
-      <Screen>
+      <Screen scrollKey={session?.id ?? "concept"}>
         <Message text="이 개념을 찾지 못했어요." error />
         <Button
           label="오늘 학습으로"
@@ -52,7 +52,7 @@ export default function Learn() {
     }
   }
   return (
-    <Screen>
+    <Screen scrollKey={session?.id ?? "concept"}>
       <Small>{concept.area}</Small>
       <Heading>{concept.title}</Heading>
       {!session ? (

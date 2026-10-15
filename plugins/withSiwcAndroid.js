@@ -1,5 +1,22 @@
-const { withAndroidManifest } = require("expo/config-plugins");
+const {
+  withAndroidManifest,
+  withAppBuildGradle,
+} = require("expo/config-plugins");
 module.exports = function withSiwcAndroid(config) {
+  config = withAppBuildGradle(config, (c) => {
+    c.modResults.contents += `
+android {
+ defaultConfig { testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner" }
+ sourceSets { androidTest.java.srcDirs += file("$rootDir/../native-tests") }
+}
+dependencies {
+ androidTestImplementation 'androidx.test:runner:1.6.2'
+ androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+ androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.3.0'
+}
+`;
+    return c;
+  });
   return withAndroidManifest(config, (config) => {
     const m = config.modResults.manifest;
     m["uses-permission"] ||= [];

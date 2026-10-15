@@ -11,7 +11,7 @@ object Identity {
  fun validate(raw: String, jwks: String, clientId: String, nonce: String, expectedSubject: String?, now: Long = System.currentTimeMillis()): JWTClaimsSet {
    val jwt = SignedJWT.parse(raw)
    require(jwt.header.algorithm == JWSAlgorithm.RS256) { "invalid_algorithm" }
-   require(jwt.header.jwkURL == null && jwt.header.x509CertURL == null && jwt.header.criticalParams.isNullOrEmpty()) { "invalid_header" }
+   require(jwt.header.getJWKURL() == null && jwt.header.x509CertURL == null && jwt.header.criticalParams.isNullOrEmpty()) { "invalid_header" }
    val key = JWKSet.parse(jwks).keys.filterIsInstance<RSAKey>().firstOrNull { it.keyID == jwt.header.keyID && (it.algorithm == null || it.algorithm == JWSAlgorithm.RS256) } ?: error("missing_key")
    require(jwt.verify(RSASSAVerifier(key.toRSAPublicKey()))) { "invalid_signature" }
    val c = jwt.jwtClaimsSet

@@ -26,7 +26,7 @@ export default function Onboarding() {
     }
   }
   return (
-    <Screen>
+    <Screen topInset>
       <Small>틈지식 · 정보처리기사 기초</Small>
       <Heading>짧게 익히고,{"\n"}오래 기억하기</Heading>
       <Body>

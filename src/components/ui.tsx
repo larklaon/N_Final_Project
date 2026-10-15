@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from "react";
+import { useEffect, useRef, type PropsWithChildren } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -10,11 +10,32 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, type } from "../theme/tokens";
-export function Screen({ children }: { children: React.ReactNode }) {
+export function Screen({
+  children,
+  topInset = false,
+  scrollKey,
+}: {
+  children: React.ReactNode;
+  topInset?: boolean;
+  scrollKey?: string;
+}) {
   const { width } = useWindowDimensions();
+  const scroll = useRef<ScrollView>(null);
+  useEffect(() => {
+    if (scrollKey !== undefined)
+      scroll.current?.scrollTo({ y: 0, animated: false });
+  }, [scrollKey]);
   return (
-    <SafeAreaView edges={["left", "right", "bottom"]} style={s.safe}>
+    <SafeAreaView
+      edges={
+        topInset
+          ? ["top", "left", "right", "bottom"]
+          : ["left", "right", "bottom"]
+      }
+      style={s.safe}
+    >
       <ScrollView
+        ref={scroll}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[
           s.page,

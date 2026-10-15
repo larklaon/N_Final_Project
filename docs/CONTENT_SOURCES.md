@@ -34,7 +34,7 @@
 | https://opendsax.cs.vt.edu/ODSA/Books/Everything/html/HashIntro.html | 200 | 15.1. Introduction &mdash; OpenDSA Data Structures and Algorithms Modules Collection |
 | https://opendsax.cs.vt.edu/ODSA/Books/Everything/html/ListArray.html | 200 | 9.3. Array-Based List Implementation &mdash; OpenDSA Data Structures and Algorithms Modules Collection |
 | https://opendsax.cs.vt.edu/ODSA/Books/Everything/html/ListLinked.html | 200 | 9.4. Linked Lists &mdash; OpenDSA Data Structures and Algorithms Modules Collection |
-| https://opentextbc.ca/dbdesign2/chapter/chapter-12-normalization/ | unavailable | HTTPError |
+| https://opentextbc.ca/dbdesign01/chapter/chapter-12-normalization/ | Web 도구에서 본문 확인 (직접 요청은 거부됨) | Chapter 12 Normalization |
 | https://owasp.org/Top10/2025/A01_2025-Broken_Access_Control/ | 200 | A01 Broken Access Control - OWASP Top 10:2025 |
 | https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-intro.pdf | 200 | PDF / title unavailable |
 | https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf | 200 | PDF / title unavailable |
