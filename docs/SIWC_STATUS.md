@@ -3,8 +3,8 @@
 | 항목 | 상태 |
 | --- | --- |
 | 공식 공개 연동 계약 | 문서 확인 (2026-10-15) |
-| Kotlin 구현 | 진행 전 |
-| 프로토콜 fixture 검증 | 진행 전 |
+| Kotlin 구현 | 소스 작성, 컴파일 진행 중 |
+| 프로토콜 fixture 검증 | fixture 작성, JUnit 실행 진행 중 |
 | Android 네이티브 실행 | 미검증 |
 | 실제 OAuth 로그인 | 미검증 |
 | 실제 response.completed | 미검증 |
