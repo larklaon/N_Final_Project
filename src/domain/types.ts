@@ -1,4 +1,5 @@
 import type { Progress } from "./review";
+import type { Knowledge } from "./resolution";
 export type SourceRef = { title: string; url: string; checkedAt: string };
 export type Concept = {
   id: string;
@@ -90,6 +91,8 @@ export type LearningSnapshot = {
   concepts: Concept[];
   progress: Record<string, Progress>;
   gapProgress: Record<string, GapProgress>;
+  /** Resolution per piece of knowledge (concept id), V3. */
+  knowledge: Record<string, Knowledge>;
   attempts: Attempt[];
   memoryRevision: number;
 };

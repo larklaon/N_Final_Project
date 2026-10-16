@@ -108,6 +108,7 @@ const base: LearningSnapshot = {
   concepts: [concept("c", 1), concept("new", 2)],
   progress: {},
   gapProgress: {},
+  knowledge: {},
   attempts: [],
   memoryRevision: 0,
 };

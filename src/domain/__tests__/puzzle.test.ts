@@ -15,13 +15,14 @@ test("pieces move none → seen (gap) → fitted (graded app answer)", () => {
   repo.ingestGapEvents([
     { id: "e1", learnerId: learner, questionId: "db-primary-ox", selectedOptionId: "o", answeredAt: now },
   ]);
-  let db = puzzle(repo.snapshot()).find((a) => a.area === "데이터베이스")!;
+  let db = puzzle(repo.snapshot(), now).find((a) => a.area === "데이터베이스")!;
   expect([db.seen, db.fitted, db.pieces[0].state]).toEqual([1, 0, "seen"]);
   const s = repo.openSession("db-primary");
   repo.submit(s.id, "a");
-  db = puzzle(repo.snapshot()).find((a) => a.area === "데이터베이스")!;
+  db = puzzle(repo.snapshot(), now).find((a) => a.area === "데이터베이스")!;
   expect([db.seen, db.fitted, db.pieces[0].state]).toEqual([0, 1, "fitted"]);
-  expect(puzzleTotals(repo.snapshot())).toEqual({ total: 60, fitted: 1, seen: 0 });
+  expect(puzzleTotals(repo.snapshot(), now)).toMatchObject({ total: 60, fitted: 1, seen: 0, complete: 0 });
+  expect(db.pieces[0]).toMatchObject({ conceptId: "db-primary", band: 2 });
 });
 
 test("areas follow curriculum order with ten pieces each", () => {

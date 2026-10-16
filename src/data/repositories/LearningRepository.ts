@@ -3,6 +3,13 @@ import { defaultPackId, packOf, packs } from "../content/packs";
 import { chatSchema, gapSchema, schema, v3Schema } from "../db/schema";
 import { advanceGap, requeueGap } from "../../domain/gap";
 import {
+  applyAnswer,
+  deltaFor,
+  freshKnowledge,
+  knowledgeWeights,
+  type Knowledge,
+} from "../../domain/resolution";
+import {
   advanceProgress,
   canGrade,
   localDate,
@@ -149,6 +156,12 @@ export class LearningRepository {
       learnerId,
     ))
       progress[row.conceptId] = JSON.parse(row.data);
+    const knowledge: Record<string, Knowledge> = {};
+    for (const row of this.db.getAllSync<{ conceptId: string; data: string }>(
+      "SELECT conceptId,data FROM knowledge_state WHERE learnerId=?",
+      learnerId,
+    ))
+      knowledge[row.conceptId] = JSON.parse(row.data);
     const gapProgress: Record<string, GapProgress> = {};
     for (const row of this.db.getAllSync<{ conceptId: string; data: string }>(
       "SELECT conceptId,data FROM gap_progress WHERE learnerId=?",
@@ -165,6 +178,7 @@ export class LearningRepository {
       concepts,
       progress,
       gapProgress,
+      knowledge,
       attempts,
       memoryRevision: this.db.getFirstSync<{ revision: number }>(
         "SELECT revision FROM memory_state WHERE learnerId=?",
@@ -273,6 +287,30 @@ export class LearningRepository {
       .map((r) => JSON.parse(r.data) as Quiz);
     return this.allQuestions;
   }
+  /** Every answer, in the app or on a gap surface, moves the knowledge it is tagged with. */
+  private applyKnowledge(learner: string, q: Quiz, correct: boolean, at: number) {
+    const amount = deltaFor(q);
+    for (const { id, weight } of knowledgeWeights(q)) {
+      const row = this.db.getFirstSync<{ data: string }>(
+        "SELECT data FROM knowledge_state WHERE learnerId=? AND conceptId=?",
+        learner,
+        id,
+      );
+      const next = applyAnswer(
+        row ? JSON.parse(row.data) : freshKnowledge,
+        correct,
+        amount * weight,
+        at,
+        weight >= 0.5,
+      );
+      this.db.runSync(
+        "INSERT INTO knowledge_state VALUES (?,?,?) ON CONFLICT(learnerId,conceptId) DO UPDATE SET data=excluded.data",
+        learner,
+        id,
+        JSON.stringify(next),
+      );
+    }
+  }
   private saveGap(learner: string, conceptId: string, g: GapProgress) {
     this.db.runSync(
       "INSERT INTO gap_progress VALUES (?,?,?,?) ON CONFLICT(learnerId,conceptId) DO UPDATE SET dueAt=excluded.dueAt,data=excluded.data",
@@ -320,6 +358,7 @@ export class LearningRepository {
           localDate(e.answeredAt),
         );
         if (inserted.changes !== 1) continue;
+        this.applyKnowledge(e.learnerId, q, correct, e.answeredAt);
         const old = this.db.getFirstSync<{ data: string }>(
           "SELECT data FROM gap_progress WHERE learnerId=? AND conceptId=?",
           e.learnerId,
@@ -416,6 +455,7 @@ export class LearningRepository {
       const correct = selected === quiz.correctOptionId;
       answer = { selected, correct, graded };
       session.answer = answer;
+      this.applyKnowledge(learner, quiz, correct, now);
       this.db.runSync(
         "INSERT INTO attempts VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         this.uuid(),

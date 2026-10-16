@@ -6,6 +6,7 @@ const s: LearningSnapshot = {
   learnerId: "local-a",
   settings: defaultSettings,
   gapProgress: {},
+  knowledge: {},
   concepts: [
     {
       id: "c",
