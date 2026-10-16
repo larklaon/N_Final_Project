@@ -16,6 +16,7 @@ const s: LearningSnapshot = {
       explanation: "설명",
       example: "예시",
       deep: "심화",
+      subjectId: "info-basic",
       prerequisiteIds: [],
       sourceRefs: [],
       contentVersion: 1,

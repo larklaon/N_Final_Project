@@ -90,6 +90,7 @@ const concept = (id: string, order: number): Concept => ({
   explanation: "text",
   example: "example",
   deep: "deep",
+  subjectId: "info-basic",
   prerequisiteIds: [],
   sourceRefs: [],
   contentVersion: 1,

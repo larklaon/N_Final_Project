@@ -2,6 +2,8 @@ import type { Progress } from "./review";
 export type SourceRef = { title: string; url: string; checkedAt: string };
 export type Concept = {
   id: string;
+  /** Which study pack this piece belongs to. */
+  subjectId: string;
   area: string;
   order: number;
   title: string;
@@ -33,6 +35,8 @@ export type Quiz = {
   contentVersion: number;
 };
 export type Settings = {
+  /** The one subject being studied now (V3: one at a time). */
+  subjectId: string | null;
   dailyGoal: number;
   gapEnabled: boolean;
   gapIntervalMinutes: number;

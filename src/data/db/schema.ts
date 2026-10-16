@@ -33,3 +33,11 @@ CREATE TABLE IF NOT EXISTS chat_messages (id TEXT PRIMARY KEY, learnerId TEXT NO
 CREATE INDEX IF NOT EXISTS chat_by_concept ON chat_messages(learnerId,conceptId,createdAt);
 PRAGMA user_version=4;
 `;
+
+/** V5: installed subjects, per-knowledge resolution, and AI 7-day plans. */
+export const v3Schema = `
+CREATE TABLE IF NOT EXISTS subjects (id TEXT PRIMARY KEY, installedAt INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS knowledge_state (learnerId TEXT NOT NULL REFERENCES learners(id) ON DELETE CASCADE, conceptId TEXT NOT NULL REFERENCES concepts(id), data TEXT NOT NULL, PRIMARY KEY(learnerId,conceptId));
+CREATE TABLE IF NOT EXISTS plans (learnerId TEXT NOT NULL REFERENCES learners(id) ON DELETE CASCADE, subjectId TEXT NOT NULL, createdAt INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY(learnerId,subjectId));
+PRAGMA user_version=5;
+`;

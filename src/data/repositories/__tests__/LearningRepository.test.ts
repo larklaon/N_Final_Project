@@ -124,7 +124,7 @@ test("v1 migration retains an existing graded attempt", () => {
   expect(
     db.getFirstSync<{ user_version: number }>("PRAGMA user_version")
       ?.user_version,
-  ).toBe(4);
+  ).toBe(5);
 });
 
 test("reset disables only the current learner gap cards and survives reopen", () => {
@@ -236,7 +236,7 @@ test("pre-V2 settings are normalized and v2 data migrates to v3", () => {
     learner,
   );
   db.execSync(
-    "DROP TABLE chat_messages; DROP TABLE gap_events; DROP TABLE gap_progress; PRAGMA user_version=2;",
+    "DROP TABLE plans; DROP TABLE knowledge_state; DROP TABLE subjects; DROP TABLE chat_messages; DROP TABLE gap_events; DROP TABLE gap_progress; PRAGMA user_version=2;",
   );
   const reopened = new LearningRepository(
     db,
@@ -289,5 +289,32 @@ test("chat history is kept per concept and learner, survives reopen and resets w
   expect(reopened.chatMessages("db-primary")).toEqual([]);
   expect(
     db.getFirstSync<{ user_version: number }>("PRAGMA user_version")?.user_version,
-  ).toBe(4);
+  ).toBe(5);
+});
+
+test("installing a subject switches the learner to that pack only; records stay per subject", () => {
+  expect(repo.installedSubjects()).toEqual([]);
+  repo.installSubject("sqld-taste");
+  expect(repo.installedSubjects()).toEqual(["sqld-taste"]);
+  const s = repo.snapshot();
+  expect(s.settings.subjectId).toBe("sqld-taste");
+  expect(s.concepts).toHaveLength(12);
+  expect(s.concepts.every((c) => c.subjectId === "sqld-taste")).toBe(true);
+  const session = repo.openSession("sqld-select");
+  repo.submit(session.id, "a");
+  repo.installSubject("info-basic");
+  expect(repo.snapshot().concepts).toHaveLength(60);
+  expect(repo.snapshot().progress["sqld-select"]).toBeDefined();
+  expect(() => repo.installSubject("toeic-words")).toThrow("아직 열리지 않은 과목");
+});
+
+test("V2 learners keep studying the information-processing basics after the V3 upgrade", () => {
+  repo.updateSettings({ onboarded: true });
+  db.execSync(
+    "DROP TABLE plans; DROP TABLE knowledge_state; DROP TABLE subjects; PRAGMA user_version=4;",
+  );
+  const reopened = new LearningRepository(db, () => `test-${++id}`, () => now);
+  expect(reopened.installedSubjects()).toEqual(["info-basic"]);
+  expect(reopened.snapshot().settings.subjectId).toBe("info-basic");
+  expect(reopened.snapshot().concepts).toHaveLength(60);
 });

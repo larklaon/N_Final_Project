@@ -1,10 +1,13 @@
 import { readFileSync, existsSync } from "node:fs";
-const path = new URL("../src/data/content/catalog.json", import.meta.url);
-if (!existsSync(path)) {
-  console.log("No content shipped yet (M0).");
-  process.exit(0);
-}
-const { concepts, questions } = JSON.parse(readFileSync(path, "utf8"));
+const files = ["catalog.json", "sqld.json"];
+const all = files.map((f) => {
+  const path = new URL(`../src/data/content/${f}`, import.meta.url);
+  if (!existsSync(path)) throw Error(`Missing pack: ${f}`);
+  return JSON.parse(readFileSync(path, "utf8"));
+});
+// Packs share one database, so ids must be unique across all of them.
+const concepts = all.flatMap((p) => p.concepts);
+const questions = all.flatMap((p) => p.questions);
 const ids = new Set(concepts.map((c) => c.id));
 if (ids.size !== concepts.length) throw Error("Duplicate concept IDs");
 const qids = new Set();
@@ -66,5 +69,5 @@ for (const c of concepts) {
 }
 const app = questions.filter((q) => q.layer === "app").length;
 console.log(
-  `Validated structure: ${concepts.length} concepts, ${questions.length - app} gap cards, ${app} app questions. Accuracy requires source review.`,
+  `Validated ${files.length} packs: ${concepts.length} concepts, ${questions.length - app} gap cards, ${app} app questions. Accuracy requires source review.`,
 );

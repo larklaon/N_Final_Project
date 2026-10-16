@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from "expo-sqlite";
-import catalog from "../content/catalog.json";
-import { chatSchema, gapSchema, schema } from "../db/schema";
+import { defaultPackId, packOf, packs } from "../content/packs";
+import { chatSchema, gapSchema, schema, v3Schema } from "../db/schema";
 import { advanceGap, requeueGap } from "../../domain/gap";
 import {
   advanceProgress,
@@ -27,6 +27,7 @@ export type Db = Pick<
 export const dailyGoals = [3, 5, 10];
 export const gapIntervals = [15, 30, 60];
 export const defaultSettings: Settings = {
+  subjectId: null,
   dailyGoal: 5,
   gapEnabled: false,
   gapIntervalMinutes: 30,
@@ -47,7 +48,7 @@ export class LearningRepository {
     const version = db.getFirstSync<{ user_version: number }>(
       "PRAGMA user_version",
     )!.user_version;
-    if (version > 4)
+    if (version > 5)
       throw Error(
         "이 버전의 앱에서 데이터를 열 수 없어요. 앱 업데이트를 확인해 주세요.",
       );
@@ -60,14 +61,31 @@ export class LearningRepository {
       );
     if (version < 3) db.withTransactionSync(() => db.execSync(gapSchema));
     if (version < 4) db.withTransactionSync(() => db.execSync(chatSchema));
+    if (version < 5)
+      db.withTransactionSync(() => {
+        db.execSync(v3Schema);
+        // Learners from V2 were studying the information-processing basics.
+        if (version > 0)
+          db.runSync(
+            "INSERT OR IGNORE INTO subjects VALUES (?,?)",
+            defaultPackId,
+            this.clock(),
+          );
+      });
     db.withTransactionSync(() => {
-      for (const c of catalog.concepts)
+      // Every bundled pack is seeded; "installing" only makes it selectable.
+      const all = packs.flatMap((p) =>
+        p.catalog
+          ? p.catalog.concepts.map((c) => ({ ...c, subjectId: p.id }))
+          : [],
+      );
+      for (const c of all)
         db.runSync(
           "INSERT INTO concepts(id,data) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data",
           c.id,
           JSON.stringify(c),
         );
-      for (const q of catalog.questions)
+      for (const q of packs.flatMap((p) => p.catalog?.questions ?? []))
         db.runSync(
           "INSERT INTO quizzes(id,conceptId,data) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data",
           q.id,
@@ -119,9 +137,11 @@ export class LearningRepository {
         )!.data,
       ),
     );
+    const subject = packOf(settings.subjectId).id;
     const concepts = this.db
       .getAllSync<{ data: string }>("SELECT data FROM concepts")
       .map((r) => JSON.parse(r.data) as Concept)
+      .filter((c) => c.subjectId === subject)
       .sort((a, b) => a.order - b.order);
     const progress: Record<string, Progress> = {};
     for (const row of this.db.getAllSync<{ conceptId: string; data: string }>(
@@ -227,6 +247,24 @@ export class LearningRepository {
     );
     if (!row) throw Error("문제를 찾지 못했어요.");
     return JSON.parse(row.data);
+  }
+  installedSubjects(): string[] {
+    return this.db
+      .getAllSync<{ id: string }>("SELECT id FROM subjects ORDER BY installedAt")
+      .map((r) => r.id);
+  }
+  /** Marks a bundled pack as downloaded (paper plan) and makes it the current subject. */
+  installSubject(id: string) {
+    const pack = packOf(id);
+    if (pack.id !== id) throw Error("아직 열리지 않은 과목이에요.");
+    this.db.withTransactionSync(() => {
+      this.db.runSync(
+        "INSERT OR IGNORE INTO subjects VALUES (?,?)",
+        id,
+        this.clock(),
+      );
+    });
+    this.updateSettings({ subjectId: id });
   }
   private allQuestions: Quiz[] | null = null;
   questions(): Quiz[] {
@@ -565,6 +603,8 @@ export class LearningRepository {
         "gap_progress",
         "gap_events",
         "chat_messages",
+        "knowledge_state",
+        "plans",
         "ai_cache",
         "automation_jobs",
       ])
@@ -602,6 +642,7 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
     "quietEnd",
   ])
     delete merged[old];
+  if (merged.onboarded && !merged.subjectId) merged.subjectId = defaultPackId;
   if (!dailyGoals.includes(merged.dailyGoal))
     merged.dailyGoal =
       dailyGoals.find((n) => n >= merged.dailyGoal) ?? defaultSettings.dailyGoal;
