@@ -1,5 +1,6 @@
 package com.teumknowledge.siwc
 
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
@@ -13,6 +14,19 @@ object Protocol {
  const val DISCOVERY = "$ISSUER/.well-known/openid-configuration"
  const val RESOURCE = "https://api.openai.com/v1"
  const val SCOPES = "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct"
+ fun authorizationUrl(client: String?, host: String, redirect: String, state: String, nonce: String, verifier: String, idTokenHint: String?, requestPlanConsent: Boolean): String {
+   val url=AUTHORIZE.toHttpUrl().newBuilder()
+     .addQueryParameter("client_id",client ?: "dynamic_agent_client")
+     .addQueryParameter("ext_agent_host_id",host).addQueryParameter("response_type","code")
+     .addQueryParameter("redirect_uri",redirect).addQueryParameter("scope",SCOPES)
+     .addQueryParameter("resource",RESOURCE).addQueryParameter("state",state)
+     .addQueryParameter("nonce",nonce).addQueryParameter("code_challenge_method","S256")
+     .addQueryParameter("code_challenge",challenge(verifier))
+   if(client==null) url.addQueryParameter("agent_name_hint","틈지식")
+   idTokenHint?.takeIf { it.isNotBlank() }?.let { url.addQueryParameter("id_token_hint",it) }
+   if(requestPlanConsent) url.addQueryParameter("prompt","consent")
+   return url.build().toString()
+ }
  fun random(): String = ByteArray(32).also { SecureRandom().nextBytes(it) }.let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
  fun challenge(verifier: String): String = Base64.getUrlEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII)))
  fun same(a: String, b: String): Boolean = MessageDigest.isEqual(a.toByteArray(Charsets.UTF_8), b.toByteArray(Charsets.UTF_8))

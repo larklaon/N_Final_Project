@@ -1,23 +1,36 @@
 import { useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Redirect, Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useApp } from "../../src/platform/AppProvider";
 import { colors } from "../../src/theme/tokens";
 export default function TabLayout() {
   const { snapshot } = useApp();
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const sidebar = width >= 840;
+  const itemHeight = Math.max(64, 24 + 8 + Math.ceil(22 * fontScale) + 16);
   if (!snapshot.settings.onboarded) return <Redirect href="/" />;
   return (
     <Tabs
       screenOptions={{
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.textPrimary,
-        tabBarPosition: width >= 840 ? "left" : "bottom",
+        tabBarPosition: sidebar ? "left" : "bottom",
+        tabBarLabelPosition: sidebar ? "beside-icon" : "below-icon",
+        tabBarActiveBackgroundColor: colors.primarySoft,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: { backgroundColor: colors.surface },
-        tabBarLabelStyle: { fontSize: 14 },
-        tabBarItemStyle: { minHeight: 48 },
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          ...(sidebar
+            ? { width: Math.max(220, 140 + 60 * fontScale) }
+            : { height: itemHeight + insets.bottom }),
+        },
+        tabBarLabelStyle: { fontSize: 14, lineHeight: 22 },
+        tabBarItemStyle: {
+          minHeight: sidebar ? Math.max(56, 22 * fontScale + 24) : itemHeight,
+        },
       }}
     >
       {(

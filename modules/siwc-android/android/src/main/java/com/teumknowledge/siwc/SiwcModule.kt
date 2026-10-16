@@ -13,7 +13,7 @@ class SiwcModule : Module() {
    OnActivityEntersBackground { manager().cancelResponse() }
    AsyncFunction("getState") { manager().state() }
    AsyncFunction("listProfiles") { manager().listProfiles() }
-   AsyncFunction("signIn") { profileId: String? -> manager().begin(profileId) }
+   AsyncFunction("signIn") { profileId: String?, requestPlanConsent: Boolean -> manager().begin(profileId,requestPlanConsent) }
    AsyncFunction("cancelSignIn") { manager().cancelAuth() }
    AsyncFunction("selectProfile") { id: String?->manager().select(id) }
    AsyncFunction("signOut") { id: String->manager().signOut(id) }

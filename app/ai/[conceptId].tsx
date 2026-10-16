@@ -13,17 +13,14 @@ import {
   Surface,
 } from "../../src/components/ui";
 import { useApp } from "../../src/platform/AppProvider";
-import {
-  getSiwc,
-  type AiEvent,
-  type ModelChoice,
-} from "../../modules/siwc-android";
+import { getSiwc, type AiEvent } from "../../modules/siwc-android";
 import {
   buildLearningContext,
   instructions,
   PROMPT_VERSION,
   type AiMode,
 } from "../../src/services/ai/context";
+import { useProfileModels } from "../../src/services/ai/useProfileModels";
 import { colors, type } from "../../src/theme/tokens";
 export default function AiExplanation() {
   const { snapshot } = useApp();
@@ -31,7 +28,7 @@ export default function AiExplanation() {
 }
 function AiExplanationScreen() {
   const { conceptId } = useLocalSearchParams<{ conceptId: string }>();
-  const { repo, snapshot, auth, refresh } = useApp();
+  const { repo, snapshot, auth, refresh, refreshAuth } = useApp();
   const router = useRouter();
   const [mode, setMode] = useState<AiMode>("simplify");
   const [question, setQuestion] = useState("");
@@ -40,7 +37,11 @@ function AiExplanationScreen() {
     "idle" | "loading" | "completed" | "failed" | "cancelled" | "cached"
   >("idle");
   const [error, setError] = useState("");
-  const [models, setModels] = useState<ModelChoice[]>([]);
+  const {
+    models,
+    error: modelError,
+    retry: retryModels,
+  } = useProfileModels(auth, refreshAuth);
   const active = useRef<{
     requestId: string | null;
     key: string;
@@ -51,15 +52,6 @@ function AiExplanationScreen() {
   const lastPair = useRef<{ question: string; answer: string } | null>(null);
   const mounted = useRef(true);
   const concept = snapshot.concepts.find((c) => c.id === conceptId);
-  useEffect(() => {
-    if (auth.status === "ready" && auth.profileId)
-      void getSiwc()
-        .listModels(auth.profileId)
-        .then(setModels)
-        .catch(() =>
-          setError("모델 목록을 가져오지 못했어요. 다시 시도해 주세요."),
-        );
-  }, [auth.status, auth.profileId]);
   useEffect(() => {
     mounted.current = true;
     function handle(event: AiEvent) {
@@ -91,6 +83,7 @@ function AiExplanationScreen() {
             : "설명을 마치지 못했어요. 기본 설명은 계속 이용할 수 있어요.",
         );
         active.current = null;
+        void refreshAuth();
       }
       if (event.type === "cancelled") {
         setStatus("cancelled");
@@ -113,7 +106,7 @@ function AiExplanationScreen() {
       active.current = null;
       if (id) void getSiwc().cancelResponse(id);
     };
-  }, [repo, conceptId]);
+  }, [repo, conceptId, refreshAuth]);
   async function generate() {
     if (active.current || !concept) return;
     setError("");
@@ -223,6 +216,14 @@ function AiExplanationScreen() {
           active.current = null;
         } else {
           setStatus(e.type === "cancelled" ? "cancelled" : "failed");
+          if (e.type === "failed") {
+            setError(
+              e.code?.includes("usage")
+                ? "ChatGPT 사용 한도에 도달했어요. 사용량을 확인해 주세요."
+                : "설명을 마치지 못했어요. ChatGPT 연결을 확인하거나 다시 시도해 주세요.",
+            );
+            void refreshAuth();
+          }
           active.current = null;
         }
       }
@@ -346,6 +347,14 @@ function AiExplanationScreen() {
         </Surface>
       )}
       {!!error && <Message text={error} error />}
+      {!!modelError && <Message text={modelError} error />}
+      {modelError && (
+        <Button
+          secondary
+          label="모델 목록 다시 불러오기"
+          onPress={retryModels}
+        />
+      )}
       {status === "cancelled" && <Small>설명 생성을 멈췄어요.</Small>}
       <Button
         secondary

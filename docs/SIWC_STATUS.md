@@ -4,7 +4,7 @@
 | --- | --- |
 | 공식 공개 연동 계약 | 문서 확인 (2026-10-15) |
 | Kotlin 구현 | Android debug 컴파일 통과 |
-| 프로토콜 fixture 검증 | Kotlin/JUnit 9개 통과 (PKCE/client/JWT/SSE/loopback) |
+| 프로토콜 fixture 검증 | Kotlin/JUnit 17개 통과 (기존 PKCE/client/JWT/SSE/loopback9개 + refresh/consent8개) |
 | Android 네이티브 실행 | API36 APK 설치·앱 시작 확인. 인증 서비스 실동작은 미검증 |
 | 실제 OAuth 로그인 | 미검증 |
 | 실제 response.completed | 미검증 |
@@ -18,3 +18,5 @@
 공식 문서: [등록·로그인](https://developers.openai.com/siwc/token-sharing-open-source/sign-in), [세션](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions), [추론](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference).
 
 실제 계정 승인·토큰 회전·브라우저 전환 중 서비스 유지·실제 응답은 fixture 성공과 별개입니다. 해당 항목을 자동 검증으로 완료했다고 표시하지 않습니다.
+
+FIX.C1에서 terminal refresh 오류의 credential 폐기/재연결과 명시적 플랜 권한 재동의 경로를 추가했다. 테스트된 URL/fixture 계약과 실제 계정 성공은 구분한다. 상세 내용은 [REVIEW_FIXES](REVIEW_FIXES.md)를 따른다.

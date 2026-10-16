@@ -32,7 +32,10 @@ export type AiRequest = {
 export interface SiwcGateway {
   getState(): Promise<AuthSnapshot>;
   listProfiles(): Promise<PublicProfile[]>;
-  signIn(profileId: string | null): Promise<AuthSnapshot>;
+  signIn(
+    profileId: string | null,
+    requestPlanConsent: boolean,
+  ): Promise<AuthSnapshot>;
   cancelSignIn(): Promise<void>;
   selectProfile(profileId: string | null): Promise<AuthSnapshot>;
   signOut(profileId: string): Promise<{ revoked: boolean }>;

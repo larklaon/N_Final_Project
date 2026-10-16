@@ -54,3 +54,7 @@ yarn-error.*
 **/build/
 **/.gradle/
 **/.cxx/
+
+# Python verification helpers
+__pycache__/
+*.pyc

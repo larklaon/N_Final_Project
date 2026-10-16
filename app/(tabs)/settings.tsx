@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Alert, Linking, Switch, TextInput, View } from "react-native";
-import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import {
   Screen,
@@ -13,8 +12,12 @@ import {
   Surface,
 } from "../../src/components/ui";
 import { useApp } from "../../src/platform/AppProvider";
-import { getSiwc, type ModelChoice } from "../../modules/siwc-android";
-import { enableReminders } from "../../src/services/notifications/scheduler";
+import { getSiwc } from "../../modules/siwc-android";
+import {
+  enableReminders,
+  mutateLearningWithNotifications,
+} from "../../src/services/notifications/scheduler";
+import { useProfileModels } from "../../src/services/ai/useProfileModels";
 import { colors, type } from "../../src/theme/tokens";
 const labels = {
   disconnected: "아직 연결하지 않았어요",
@@ -29,7 +32,11 @@ export default function Settings() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [models, setModels] = useState<ModelChoice[]>([]);
+  const {
+    models,
+    error: modelError,
+    retry: retryModels,
+  } = useProfileModels(auth, refreshAuth);
   const [slotDraft, setSlotDraft] = useState<{
     learner: string;
     value: string;
@@ -43,8 +50,6 @@ export default function Settings() {
     setError("");
     try {
       await action();
-      refresh();
-      await refreshAuth();
     } catch (e) {
       setError(
         e instanceof Error
@@ -52,22 +57,14 @@ export default function Settings() {
           : "작업을 마치지 못했어요. 다시 시도해 주세요.",
       );
     } finally {
+      // Local changes may have committed even if an OS notification operation failed.
+      refresh();
+      await refreshAuth();
       setBusy(false);
     }
   }
-  useEffect(() => {
-    if (auth.status === "ready" && auth.profileId)
-      void getSiwc()
-        .listModels(auth.profileId)
-        .then(setModels)
-        .catch(() =>
-          setError(
-            "모델 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
-          ),
-        );
-  }, [auth.status, auth.profileId]);
 
-  function connect(profile: string | null) {
+  function connect(profile: string | null, requestPlanConsent = false) {
     Alert.alert(
       "ChatGPT 연결 안내",
       "개념·학습 요약·입력 질문을 OpenAI에 전송해 개인화 설명을 만들어요. ChatGPT 플랜 사용량이 적용돼요. 첫 연결은 현재 기기의 학습 기록과 연결돼요.",
@@ -78,7 +75,7 @@ export default function Settings() {
           onPress: () =>
             void run(async () => {
               repo.updateSettings({ aiConsentAt: Date.now() });
-              await getSiwc().signIn(profile);
+              await getSiwc().signIn(profile, requestPlanConsent);
             }),
         },
       ],
@@ -97,12 +94,13 @@ export default function Settings() {
           style: "destructive",
           onPress: () =>
             void run(async () => {
-              await Notifications.cancelAllScheduledNotificationsAsync();
-              if (all) {
-                await getSiwc().eraseAll();
-                repo.eraseAll();
-                router.replace("/");
-              } else repo.resetCurrent();
+              await mutateLearningWithNotifications(repo, async () => {
+                if (all) {
+                  await getSiwc().eraseAll();
+                  repo.eraseAll();
+                } else repo.resetCurrent();
+              });
+              if (all) router.replace("/");
             }),
         },
       ],
@@ -205,9 +203,18 @@ export default function Settings() {
           />
         ) : (
           <Button
-            label="Continue with ChatGPT"
+            label={
+              auth.status === "connectedWithoutPlan"
+                ? "ChatGPT 플랜 사용 허용"
+                : "Continue with ChatGPT"
+            }
             disabled={busy}
-            onPress={() => connect(auth.profileId ?? null)}
+            onPress={() =>
+              connect(
+                auth.profileId ?? null,
+                auth.status === "connectedWithoutPlan",
+              )
+            }
           />
         )}
         <Button
@@ -227,8 +234,10 @@ export default function Settings() {
         disabled={busy}
         onPress={() =>
           void run(async () => {
-            await getSiwc().selectProfile(null);
-            repo.selectProfile(null);
+            await mutateLearningWithNotifications(repo, async () => {
+              await getSiwc().selectProfile(null);
+              repo.selectProfile(null);
+            });
           })
         }
       />
@@ -240,12 +249,22 @@ export default function Settings() {
           label={`${p.profileId === auth.profileId ? "현재 · " : ""}${p.label}${p.connected ? "" : " · 재연결 필요"}`}
           onPress={() =>
             void run(async () => {
-              await getSiwc().selectProfile(p.profileId);
-              repo.selectProfile(p.profileId);
+              await mutateLearningWithNotifications(repo, async () => {
+                await getSiwc().selectProfile(p.profileId);
+                repo.selectProfile(p.profileId);
+              });
             })
           }
         />
       ))}
+      {!!modelError && <Message text={modelError} error />}
+      {modelError && (
+        <Button
+          secondary
+          label="모델 목록 다시 불러오기"
+          onPress={retryModels}
+        />
+      )}
       {models.length > 0 && (
         <>
           <Small>설명에 사용할 모델</Small>

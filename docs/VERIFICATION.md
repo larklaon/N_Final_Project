@@ -1,6 +1,6 @@
 # 개발 검증 결과
 
-2026-10-16 독립 검수에서 기존 검사 통과와 별개로 수정할 결함7건을 확인했습니다. 최신 판정은 [ASTRA_REVIEW](ASTRA_REVIEW.md)를 따릅니다.
+2026-10-16 독립 검수의 결함7건을 FIX.C1에서 수정했습니다. [수정·회귀 검증 결과](REVIEW_FIXES.md)와 [수정 전 독립 검수](ASTRA_REVIEW.md)를 구분합니다. Astra 독립 재검수는 대기 중입니다.
 
 기준: 2026-10-15. 자동 검사, 실제 Android 실행, 외부 계정 검증을 구분합니다.
 
@@ -56,3 +56,7 @@ Metro를 8081에서 실행하고, BUILD 절차에 더해 `:app:assembleDebugAndr
 - SHA-256: `569735d2256854b4d52d7baf22d741df4da10795ab29ccfc899d25f0140bf2d9`
 - 소스 checkpoint: M7.C2. 실제 커밋 SHA와 push 결과는 로컬 상태에 기록
 - Expo 57.0.30 / Expo Router 57.0.28로 권장 패치 정렬 후 Gradle debug build와 Expo Doctor21/21 통과
+
+## 2026-10-16 — FIX.C1 최신 상태
+
+Jest26개·Kotlin17개·typecheck/lint·콘텐츠 구조·Doctor21/21·Android debug build 통과. API36의 360/412dp×100/200% 및 가로100% 탭 확인을 마쳤다. 최신 APK 크기·checksum·화면과 검수7건 대응은 REVIEW_FIXES에 기록했다. 위 M7.C2 APK 정보는 이전 산출물 기록이다. 실제 OAuth/AI·실기기 알림·보안/출처 대조 미완료 상태는 유지한다.

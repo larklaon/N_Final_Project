@@ -50,67 +50,115 @@ export function planReminders(s: LearningSnapshot, now: number): Reminder[] {
   }
   return result;
 }
-let running: Promise<void> | null = null;
+// OS mutations are serialized per repository, including destructive/profile operations.
+const queues = new WeakMap<LearningRepository, Promise<void>>();
+export function withNotificationLock(
+  repo: LearningRepository,
+  action: () => Promise<void>,
+) {
+  const next = (queues.get(repo) ?? Promise.resolve()).then(action);
+  queues.set(
+    repo,
+    next.catch(() => {}),
+  );
+  return next;
+}
+async function reconcileNow(repo: LearningRepository): Promise<void> {
+  passes: for (let tries = 0; tries < 3; tries++) {
+    const snapshot = repo.snapshot();
+    const job = repo
+      .notificationJobs()
+      .find((j) => j.learnerId === snapshot.learnerId);
+    if (!job) return;
+    const current = () =>
+      repo.activeLearner === snapshot.learnerId &&
+      repo.snapshot().memoryRevision === snapshot.memoryRevision;
+    const restart = () => repo.queueNotifications();
+    const permission = await Notifications.getPermissionsAsync();
+    if (!current()) {
+      restart();
+      continue;
+    }
+    const desired = permission.granted
+      ? planReminders(snapshot, Date.now())
+      : [];
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    if (!current()) {
+      restart();
+      continue;
+    }
+    const actual = new Map(
+      scheduled
+        .filter((n) => n.identifier.startsWith("teum:"))
+        .map((n) => [n.identifier, n]),
+    );
+    for (const [id, n] of actual) {
+      if (
+        !desired.some(
+          (d) => d.id === id && d.fingerprint === n.content.data?.fingerprint,
+        )
+      ) {
+        await Notifications.cancelScheduledNotificationAsync(id);
+        if (!current()) {
+          restart();
+          continue passes;
+        }
+      }
+    }
+    for (const d of desired) {
+      if (actual.get(d.id)?.content.data?.fingerprint === d.fingerprint)
+        continue;
+      await Notifications.scheduleNotificationAsync({
+        identifier: d.id,
+        content: {
+          title: "잠깐, 한 개념만 익혀볼까요?",
+          body: `오늘은 ${d.title}을 짧게 살펴봐요.`,
+          data: {
+            type: "learning",
+            learnerId: d.learnerId,
+            conceptId: d.conceptId,
+            fingerprint: d.fingerprint,
+          },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: new Date(d.fireAt),
+          channelId: "learning",
+        },
+      });
+      if (!current()) {
+        // A schedule call already in flight can finish after invalidation.
+        await Notifications.cancelScheduledNotificationAsync(d.id);
+        restart();
+        continue passes;
+      }
+    }
+    repo.markNotifications(
+      snapshot.learnerId,
+      job.revision,
+      desired.map((d) => ({ id: d.id, fingerprint: d.fingerprint })),
+    );
+    return;
+  }
+}
 export function reconcileNotifications(
   repo: LearningRepository,
 ): Promise<void> {
-  if (running) return running;
-  running = (async () => {
-    for (let tries = 0; tries < 3; tries++) {
-      const snapshot = repo.snapshot();
-      const job = repo
-        .notificationJobs()
-        .find((j) => j.learnerId === snapshot.learnerId);
-      if (!job) return;
-      const permission = await Notifications.getPermissionsAsync();
-      const desired = permission.granted
-        ? planReminders(snapshot, Date.now())
-        : [];
-      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-      const actual = new Map(
-        scheduled
-          .filter((n) => n.identifier.startsWith("teum:"))
-          .map((n) => [n.identifier, n]),
-      );
-      for (const [id, n] of actual)
-        if (
-          !desired.some(
-            (d) => d.id === id && d.fingerprint === n.content.data?.fingerprint,
-          )
-        )
-          await Notifications.cancelScheduledNotificationAsync(id);
-      for (const d of desired) {
-        if (actual.get(d.id)?.content.data?.fingerprint === d.fingerprint)
-          continue;
-        await Notifications.scheduleNotificationAsync({
-          identifier: d.id,
-          content: {
-            title: "잠깐, 한 개념만 익혀볼까요?",
-            body: `오늘은 ${d.title}을 짧게 살펴봐요.`,
-            data: {
-              type: "learning",
-              learnerId: d.learnerId,
-              conceptId: d.conceptId,
-              fingerprint: d.fingerprint,
-            },
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: new Date(d.fireAt),
-            channelId: "learning",
-          },
-        });
-      }
-      repo.markNotifications(
-        snapshot.learnerId,
-        job.revision,
-        desired.map((d) => ({ id: d.id, fingerprint: d.fingerprint })),
-      );
+  return withNotificationLock(repo, () => reconcileNow(repo));
+}
+/** Wait for prior OS work before deleting or switching its owning learner. */
+export function mutateLearningWithNotifications(
+  repo: LearningRepository,
+  action: () => void | Promise<void>,
+): Promise<void> {
+  return withNotificationLock(repo, async () => {
+    try {
+      await action();
+    } finally {
+      repo.queueNotifications();
+      await reconcileNow(repo);
     }
-  })().finally(() => {
-    running = null;
   });
-  return running;
 }
 export async function enableReminders(repo: LearningRepository) {
   await Notifications.setNotificationChannelAsync("learning", {

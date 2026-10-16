@@ -17,7 +17,10 @@ import {
   type AuthSnapshot,
   type PublicProfile,
 } from "../../modules/siwc-android";
-import { reconcileNotifications } from "../services/notifications/scheduler";
+import {
+  reconcileNotifications,
+  withNotificationLock,
+} from "../services/notifications/scheduler";
 import { Button, Body, Title, Surface } from "../components/ui";
 import { colors } from "../theme/tokens";
 type AppContextValue = {
@@ -75,15 +78,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshAuth = useCallback(async () => {
     try {
       const gateway = getSiwc();
-      const state = await gateway.getState();
-      const list = await gateway.listProfiles();
-      if (repo && state.profileId) {
-        const learner = repo.activeLearner;
-        repo.selectProfile(state.profileId);
-        if (repo.activeLearner !== learner) refresh();
-      }
-      setAuth(state);
-      setProfiles(list);
+      const read = async () => {
+        const state = await gateway.getState();
+        const list = await gateway.listProfiles();
+        if (repo) {
+          const learner = repo.activeLearner;
+          repo.selectProfile(state.profileId ?? null);
+          if (repo.activeLearner !== learner) refresh();
+        }
+        setAuth(state);
+        setProfiles(list);
+      };
+      if (repo) {
+        await withNotificationLock(repo, read);
+        void reconcileNotifications(repo).catch(() =>
+          setNotificationError(
+            "알림 일정을 준비하지 못했어요. 다음 실행 때 다시 시도해요.",
+          ),
+        );
+      } else await read();
     } catch {
       setAuth({
         status: "disconnected",

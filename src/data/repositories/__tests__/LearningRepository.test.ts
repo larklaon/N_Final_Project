@@ -1,28 +1,6 @@
-import { DatabaseSync } from "node:sqlite";
+import { database } from "./database";
 import { LearningRepository, type Db } from "../LearningRepository";
 import { dailyCount } from "../../../domain/selection";
-function database(): Db {
-  const db = new DatabaseSync(":memory:");
-  return {
-    execSync: (sql: string) => db.exec(sql),
-    runSync: (sql: string, ...params: unknown[]) =>
-      db.prepare(sql).run(...(params as never[])),
-    getFirstSync: (sql: string, ...params: unknown[]) =>
-      db.prepare(sql).get(...(params as never[])) ?? null,
-    getAllSync: (sql: string, ...params: unknown[]) =>
-      db.prepare(sql).all(...(params as never[])),
-    withTransactionSync: (fn: () => void) => {
-      db.exec("BEGIN");
-      try {
-        fn();
-        db.exec("COMMIT");
-      } catch (e) {
-        db.exec("ROLLBACK");
-        throw e;
-      }
-    },
-  } as unknown as Db;
-}
 let db: Db;
 let repo: LearningRepository;
 let now: number;
@@ -146,4 +124,25 @@ test("v1 migration retains an existing graded attempt", () => {
     db.getFirstSync<{ user_version: number }>("PRAGMA user_version")
       ?.user_version,
   ).toBe(2);
+});
+
+test("reset disables only the current learner reminders and survives reopen", () => {
+  repo.selectProfile("a");
+  repo.updateSettings({ notificationsEnabled: true });
+  const learnerA = repo.activeLearner;
+  repo.selectProfile("b");
+  repo.updateSettings({ notificationsEnabled: true });
+  repo.resetCurrent();
+  const reopened = new LearningRepository(
+    db,
+    () => `test-${++id}`,
+    () => now,
+  );
+  expect(reopened.snapshot().settings.notificationsEnabled).toBe(false);
+  expect(reopened.snapshot(learnerA).settings.notificationsEnabled).toBe(true);
+  expect(
+    reopened
+      .notificationJobs()
+      .some((j) => j.learnerId === reopened.activeLearner),
+  ).toBe(true);
 });

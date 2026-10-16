@@ -1,5 +1,14 @@
 # 개발 기록
 
+## 2026-10-16 — FIX.C1 — 검수7건 수정
+
+- 상태: 보고된7건 구현 수정·관련 회귀 검증 완료. Astra 독립 재검수 대기.
+- 변경: 삭제/예약/프로필 작업 직렬화 및 stale OS 예약 취소, 초기화 알림 off, terminal refresh 복구, 명시적 플랜 재동의, 모델 응답 격리/재시도, 확대 탭 높이·가로 대비.
+- 검증: TypeScript·ESLint·Jest26개·Kotlin17개·콘텐츠60/120·Doctor21/21·Android debug/AndroidTest 빌드 통과. API36 360/412dp×100/200%와 가로100%에서 탭 확인. 상세 완료 기준과 증거는 REVIEW_FIXES.
+- APK: arm64 개발용 파일 갱신. Metro가 필요하며 checksum/크기는 REVIEW_FIXES에 기록. 의존성/lockfile 변경 없음.
+- 제한: 실제 OAuth/AI·실기기 알림·전체 콘텐츠 출처·의존성 대응·배포 서명 미완료. 사람 모집은 추후 조건.
+- 다음: 수정 checkpoint를 대상으로 Astra 독립 재검수.
+
 ## 2026-10-16 — REVIEW.C1 — 독립 검수
 
 - 대상: `5970fa7` Android MVP. 앱 구현은 변경하지 않고 ASTRA_REVIEW에 재현·수정 기준을 기록했다.

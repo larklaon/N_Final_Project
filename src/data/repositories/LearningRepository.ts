@@ -438,6 +438,15 @@ export class LearningRepository {
         "automation_jobs",
       ])
         this.db.runSync(`DELETE FROM ${table} WHERE learnerId=?`, learner);
+      const settings = {
+        ...this.snapshot().settings,
+        notificationsEnabled: false,
+      };
+      this.db.runSync(
+        "UPDATE learner_settings SET data=? WHERE learnerId=?",
+        JSON.stringify(settings),
+        learner,
+      );
       this.touch(learner);
     });
   }

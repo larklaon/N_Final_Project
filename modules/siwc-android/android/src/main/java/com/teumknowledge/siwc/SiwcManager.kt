@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import okhttp3.Call
 import okhttp3.FormBody
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -28,7 +27,7 @@ class SiwcManager private constructor(private val context: Context) {
  @Volatile var emit: ((Map<String,Any>)->Unit)?=null
  @Volatile private var authStatus: String?=null
  @Volatile private var authMessage: String?=null
- private data class Attempt(val id: String, val profile: String?, val state: String, val nonce: String, val verifier: String, val loop: Loopback)
+ private data class Attempt(val id: String, val profile: String?, val state: String, val nonce: String, val verifier: String, val loop: Loopback, val requestPlanConsent: Boolean)
  @Volatile private var pending: Attempt?=null
  @Volatile private var responseCall: Call?=null
  @Volatile private var responseId: String?=null
@@ -46,7 +45,7 @@ class SiwcManager private constructor(private val context: Context) {
      val r=record(); val id=active(r); val c=id?.let { profiles(r).optJSONObject(it) }
      val status=authStatus ?: when {
        c==null -> "disconnected"
-       !c.has("access_token") -> "reconnectRequired"
+       SessionTokens.requiresReconnect(c) -> "reconnectRequired"
        !c.optString("scope").split(' ').contains("chatgpt.tokens.use.direct") -> "connectedWithoutPlan"
        else -> "ready"
      }
@@ -57,12 +56,12 @@ class SiwcManager private constructor(private val context: Context) {
    val p=profiles(record()); p.keys().asSequence().map { id -> val c=p.getJSONObject(id)
      mapOf("profileId" to id,"label" to c.optString("label","저장된 계정"),"connected" to c.has("access_token")) }.toList()
  }
- fun begin(profileId: String?): Map<String,Any> = synchronized(lock) {
+ fun begin(profileId: String?, requestPlanConsent: Boolean = false): Map<String,Any> = synchronized(lock) {
    if(pending!=null) return state()
    cancelResponse()
    if(profileId!=null) credential(record(),profileId)
    host()
-   val a=Attempt(UUID.randomUUID().toString(),profileId,Protocol.random(),Protocol.random(),Protocol.random(),Loopback())
+   val a=Attempt(UUID.randomUUID().toString(),profileId,Protocol.random(),Protocol.random(),Protocol.random(),Loopback(),requestPlanConsent)
    pending=a; authStatus="authorizing"; authMessage=null
    try { context.startForegroundService(Intent(context,AuthService::class.java)) }
    catch(e: Exception) { pending=null; a.loop.close(); authStatus=null; throw e }
@@ -75,18 +74,10 @@ class SiwcManager private constructor(private val context: Context) {
        val saved=synchronized(lock) { a.profile?.let { credential(record(),it) } }
        val retained=synchronized(lock) { record().optString("pending_client").takeIf { it.isNotEmpty() } }
        val client=saved?.getString("client_id") ?: retained
-       val url=Protocol.AUTHORIZE.toHttpUrl().newBuilder()
-         .addQueryParameter("client_id",client ?: "dynamic_agent_client")
-         .addQueryParameter("ext_agent_host_id",host()).addQueryParameter("response_type","code")
-         .addQueryParameter("redirect_uri",a.loop.redirect).addQueryParameter("scope",Protocol.SCOPES)
-         .addQueryParameter("resource",Protocol.RESOURCE).addQueryParameter("state",a.state)
-         .addQueryParameter("nonce",a.nonce).addQueryParameter("code_challenge_method","S256")
-         .addQueryParameter("code_challenge",Protocol.challenge(a.verifier))
-       if(client==null) url.addQueryParameter("agent_name_hint","틈지식")
-       saved?.optString("id_token")?.takeIf { it.isNotBlank() }?.let { url.addQueryParameter("id_token_hint",it) }
+       val url=Protocol.authorizationUrl(client,host(),a.loop.redirect,a.state,a.nonce,a.verifier,saved?.optString("id_token"),a.requestPlanConsent)
        require(pending===a) { "cancelled" }
        // This URI is never logged: it can contain a retained ID-token hint.
-       context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(url.build().toString())).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+       context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
        val params=a.loop.await(a.state)
        require(params["error"]==null) { "access_denied" }
        val issued=Protocol.callbackClient(client,params["client_id"])
@@ -117,24 +108,8 @@ class SiwcManager private constructor(private val context: Context) {
    }
  }
  fun cancelAuth() { synchronized(lock) { val a=pending;pending=null;authStatus=null;authMessage="연결을 취소했어요.";a?.loop?.close() };context.stopService(Intent(context,AuthService::class.java)) }
- private fun saveToken(c: JSONObject, t: JSONObject) {
-   c.put("access_token",t.getString("access_token"))
-   if(t.has("refresh_token")) c.put("refresh_token",t.getString("refresh_token"))
-   if(t.has("id_token")) c.put("id_token",t.getString("id_token"))
-   if(t.has("scope")) c.put("scope",t.getString("scope"))
-   c.put("expires_at",System.currentTimeMillis()+t.getLong("expires_in")*1000)
- }
- private fun postForm(url: String, fields: Map<String,String>): JSONObject {
-   val body=FormBody.Builder().apply { fields.forEach { (k,v)->add(k,v) } }.build()
-   return http.newCall(Request.Builder().url(url).post(body).build()).execute().use { res ->
-     if(!res.isSuccessful) {
-       val code=runCatching { JSONObject(res.body?.string() ?: "{}").optString("error") }.getOrDefault("")
-       if(code=="invalid_grant" || code=="invalid_token") error("reconnect_required")
-       error("oauth_http_${res.code}")
-     }
-     JSONObject(res.body?.string() ?: error("empty_body"))
-   }
- }
+ private fun saveToken(c: JSONObject, t: JSONObject) = SessionTokens.save(c,t)
+ private fun postForm(url: String, fields: Map<String,String>): JSONObject = OAuthTokenClient(http,url).request(fields)
  private fun getJson(url: String, access: String?=null): JSONObject {
    val request=Request.Builder().url(url).apply { access?.let { header("Authorization","Bearer $it") } }.build()
    return http.newCall(request).execute().use { res -> require(res.isSuccessful) { "http_${res.code}" };JSONObject(res.body?.string() ?: error("empty_body")) }
@@ -143,21 +118,7 @@ class SiwcManager private constructor(private val context: Context) {
  private fun access(id: String): String = synchronized(lock) {
    require(pending==null) { "authorizing" }
    val r=record();require(active(r)==id) { "inactive_profile" };val c=credential(r,id)
-   require(c.optString("scope").split(' ').contains("chatgpt.tokens.use.direct")) { "plan_permission_missing" }
-   require(c.has("access_token")) { "reconnect_required" }
-   if(c.optLong("expires_at")<System.currentTimeMillis()+60_000) {
-     require(c.has("refresh_token")) { "reconnect_required" }
-     try {
-       val t=postForm(Protocol.TOKEN,mapOf("grant_type" to "refresh_token","client_id" to c.getString("client_id"),"refresh_token" to c.getString("refresh_token"),"resource" to Protocol.RESOURCE))
-       require(t.optString("access_token").isNotBlank() && t.optLong("expires_in")>0) { "invalid_token_response" }
-       saveToken(c,t);vault.save(r)
-     } catch(e: Exception) {
-       if(e.message=="reconnect_required") { c.remove("access_token");c.remove("refresh_token");c.remove("id_token");vault.save(r) }
-       throw e
-     }
-   }
-   require(c.optString("scope").split(' ').contains("chatgpt.tokens.use.direct")) { "plan_permission_missing" }
-   c.getString("access_token")
+   SessionTokens.access(c,{ fields -> postForm(Protocol.TOKEN,fields) },{ vault.save(r) })
  }
  fun select(id: String?): Map<String,Any> { cancelResponse();cancelAuth();synchronized(lock) { val r=record();if(id==null) r.remove("active") else { credential(r,id);r.put("active",id) };vault.save(r);authStatus=null };return state() }
  fun signOut(id: String): Map<String,Boolean> {
