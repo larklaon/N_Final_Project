@@ -38,9 +38,33 @@ for (const q of questions) {
   )
     throw Error(`Invalid options: ${q.id}`);
 }
-for (const c of concepts)
-  if (questions.filter((q) => q.conceptId === c.id).length !== 2)
-    throw Error(`Expected 2 questions: ${c.id}`);
+for (const q of questions) {
+  if (q.layer !== "gap" && q.layer !== "app")
+    throw Error(`Invalid layer: ${q.id}`);
+  if (q.context !== undefined && (typeof q.context !== "string" || !q.context))
+    throw Error(`Invalid context: ${q.id}`);
+  if (q.layer === "app") {
+    if (q.type !== "choice" || q.options.length !== 4)
+      throw Error(`App question needs 4 choices: ${q.id}`);
+    if (
+      !q.builtOn?.length ||
+      !q.builtOn.includes(q.conceptId) ||
+      q.builtOn.some((id) => !ids.has(id))
+    )
+      throw Error(`Invalid builtOn: ${q.id}`);
+  }
+}
+for (const c of concepts) {
+  const own = questions.filter((q) => q.conceptId === c.id);
+  // Gap cards: one O/X and one quick choice. App layer: one deeper choice.
+  if (
+    own.filter((q) => q.layer === "gap" && q.type === "ox").length !== 1 ||
+    own.filter((q) => q.layer === "gap" && q.type === "choice").length !== 1 ||
+    own.filter((q) => q.layer === "app").length !== 1
+  )
+    throw Error(`Expected gap ox + gap choice + app question: ${c.id}`);
+}
+const app = questions.filter((q) => q.layer === "app").length;
 console.log(
-  `Validated structure: ${concepts.length} concepts, ${questions.length} questions. Accuracy requires source review.`,
+  `Validated structure: ${concepts.length} concepts, ${questions.length - app} gap cards, ${app} app questions. Accuracy requires source review.`,
 );
