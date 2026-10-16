@@ -1,0 +1,32 @@
+<resources>
+  <style name="GapNotificationButton">
+    <item name="android:background">@drawable/gap_button_bg</item>
+    <item name="android:textAppearance">@style/TextAppearance.Compat.Notification.Title</item>
+    <item name="android:textAllCaps">false</item>
+    <item name="android:minWidth">0dp</item>
+    <item name="android:minHeight">0dp</item>
+    <item name="android:paddingStart">12dp</item>
+    <item name="android:paddingEnd">12dp</item>
+    <item name="android:gravity">center</item>
+  </style>
+  <style name="GapNotificationOption" parent="GapNotificationButton">
+    <item name="android:layout_width">match_parent</item>
+    <item name="android:layout_height">wrap_content</item>
+    <item name="android:minHeight">44dp</item>
+    <item name="android:layout_marginTop">6dp</item>
+    <item name="android:gravity">start|center_vertical</item>
+    <item name="android:textAppearance">@style/TextAppearance.Compat.Notification</item>
+  </style>
+  <style name="GapWidgetOption">
+    <item name="android:layout_width">match_parent</item>
+    <item name="android:layout_height">wrap_content</item>
+    <item name="android:minHeight">44dp</item>
+    <item name="android:background">@drawable/gap_widget_option_bg</item>
+    <item name="android:textColor">#FF121513</item>
+    <item name="android:textSize">15sp</item>
+    <item name="android:textAllCaps">false</item>
+    <item name="android:gravity">start|center_vertical</item>
+    <item name="android:paddingStart">14dp</item>
+    <item name="android:paddingEnd">14dp</item>
+  </style>
+</resources>

@@ -45,7 +45,7 @@ beforeEach(() => {
   });
 });
 
-test("enabled cards get a deck for the active learner; disabled cards clear it", async () => {
+test("the lock-screen card follows the toggle; the deck stays for the widget", async () => {
   repo.updateSettings({ gapEnabled: true, gapIntervalMinutes: 15 });
   await syncGap(repo);
   expect(configured.at(-1)).toMatchObject({
@@ -58,7 +58,8 @@ test("enabled cards get a deck for the active learner; disabled cards clear it",
   expect(configured.at(-1)!.deck.length).toBeGreaterThan(0);
   repo.updateSettings({ gapEnabled: false });
   await syncGap(repo);
-  expect(configured.at(-1)).toMatchObject({ enabled: false, deck: [] });
+  expect(configured.at(-1)!.enabled).toBe(false);
+  expect(configured.at(-1)!.deck.length).toBeGreaterThan(0);
 });
 
 test("without notification permission the card stays off even if enabled in settings", async () => {
@@ -67,7 +68,7 @@ test("without notification permission the card stays off even if enabled in sett
     .mocked(Notifications.getPermissionsAsync)
     .mockResolvedValue({ granted: false } as Notifications.NotificationPermissionsStatus);
   await syncGap(repo);
-  expect(configured.at(-1)).toMatchObject({ enabled: false, deck: [] });
+  expect(configured.at(-1)!.enabled).toBe(false);
 });
 
 test("answers given outside the app are ingested once, then acknowledged", async () => {
@@ -105,7 +106,8 @@ test("erasing everything while a sync waits on permission leaves no old learner 
   await Promise.all([first, erase]);
   const last = configured.at(-1)!;
   expect(last.learnerId).not.toBe(old);
-  expect(last).toMatchObject({ enabled: false, deck: [] });
+  expect(last.enabled).toBe(false);
+  expect(last.deck.every((c) => c.learnerId === last.learnerId)).toBe(true);
 });
 
 test("answers already given are kept for the learner before a profile switch", async () => {

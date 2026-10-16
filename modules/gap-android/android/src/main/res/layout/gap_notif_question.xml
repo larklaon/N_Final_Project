@@ -1,0 +1,23 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="horizontal" android:gravity="center_vertical">
+    <TextView android:id="@+id/gap_prompt" android:layout_width="0dp" android:layout_height="wrap_content"
+      android:layout_weight="1" android:maxLines="2" android:ellipsize="end"
+      android:textAppearance="@style/TextAppearance.Compat.Notification.Title" />
+    <LinearLayout android:id="@+id/gap_ox_row" android:layout_width="wrap_content" android:layout_height="wrap_content"
+      android:layout_marginStart="8dp" android:orientation="horizontal">
+      <Button android:id="@+id/gap_ox_1" style="@style/GapNotificationButton" android:layout_width="48dp" android:layout_height="40dp" />
+      <Button android:id="@+id/gap_ox_2" style="@style/GapNotificationButton" android:layout_width="48dp" android:layout_height="40dp" android:layout_marginStart="6dp" />
+    </LinearLayout>
+  </LinearLayout>
+  <TextView android:id="@+id/gap_expand_hint" android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:text="@string/gap_expand_hint" android:textAppearance="@style/TextAppearance.Compat.Notification.Info" />
+  <LinearLayout android:id="@+id/gap_options" android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:layout_marginTop="8dp" android:orientation="vertical">
+    <Button android:id="@+id/gap_option_1" style="@style/GapNotificationOption" />
+    <Button android:id="@+id/gap_option_2" style="@style/GapNotificationOption" />
+    <Button android:id="@+id/gap_option_3" style="@style/GapNotificationOption" />
+    <Button android:id="@+id/gap_option_4" style="@style/GapNotificationOption" />
+  </LinearLayout>
+</LinearLayout>

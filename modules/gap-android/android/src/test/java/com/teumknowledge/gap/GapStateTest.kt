@@ -1,0 +1,102 @@
+package com.teumknowledge.gap
+
+import org.json.JSONArray
+import org.json.JSONObject
+import org.junit.Assert.*
+import org.junit.Test
+
+class GapStateTest {
+  private val now = 1_800_000_000_000L
+  private fun card(i: Int, type: String = "ox") = JSONObject().put("cardId", "c$i").put("learnerId", "learner")
+    .put("questionId", "q$i").put("conceptTitle", "개념$i").put("area", "영역").put("type", type).put("prompt", "문제$i")
+    .put("options", JSONArray().put(JSONObject().put("id", "o").put("text", "맞아요 (O)")).put(JSONObject().put("id", "x").put("text", "아니에요 (X)")))
+    .put("correctOptionId", "o").put("feedback", "한 줄 해설")
+  private fun config(n: Int, enabled: Boolean = true) = JSONObject().put("enabled", enabled).put("learnerId", "learner")
+    .put("intervalMinutes", 30).put("start", "07:00").put("end", "22:00")
+    .put("deck", JSONArray().apply { (0 until n).forEach { put(card(it)) } })
+  private fun state(n: Int = 3, enabled: Boolean = true) = GapState().apply { configure(config(n, enabled), now) }
+  private var ids = 0
+  private val newId = { "event-${++ids}" }
+
+  @Test fun showsFirstCardOnlyInsideWindowAndWhenEnabled() {
+    val s = state()
+    assertTrue(s.view(true, 9 * 60) is GapView.Question)
+    assertEquals(GapView.Hidden, s.view(true, 22 * 60))
+    assertEquals(GapView.Hidden, s.view(true, 6 * 60 + 59))
+    // The widget is user-placed: it ignores the toggle and the window.
+    assertTrue(state(enabled = false).view(false, 23 * 60) is GapView.Question)
+    assertEquals(GapView.Hidden, state(enabled = false).view(true, 9 * 60))
+  }
+
+  @Test fun answeringRecordsOneEventAndShowsResult() {
+    val s = state()
+    assertEquals(GapAnswer("x", false), s.answer("c0", "x", now, newId))
+    // Double taps and stale buttons from an older card are ignored.
+    assertNull(s.answer("c0", "o", now, newId))
+    assertNull(s.answer("c1", "o", now, newId))
+    assertNull(s.answer("c0", "nope", now, newId))
+    assertEquals(1, s.events().length())
+    val e = s.events().getJSONObject(0)
+    assertEquals(listOf("event-1", "learner", "q0", "x", now), listOf(e.get("id"), e.get("learnerId"), e.get("questionId"), e.get("selectedOptionId"), e.get("answeredAt")))
+    val v = s.view(true, 9 * 60) as GapView.Result
+    assertFalse(v.answer.correct)
+    assertEquals("정답은 O", GapSurfaces.resultTitle(v.card, v.answer))
+  }
+
+  @Test fun advanceSkipsCardsAnsweredCorrectlyAndWrapsWhenAllDone() {
+    val s = state(3)
+    s.answer("c0", "o", now, newId); s.advance(now)
+    s.answer("c1", "o", now, newId); s.advance(now)
+    assertEquals("c2", s.current()!!.cardId)
+    s.answer("c2", "x", now, newId); s.advance(now)
+    // c0 and c1 were right; only c2 (wrong) remains in this pass.
+    assertEquals("c2", s.current()!!.cardId)
+    s.answer("c2", "o", now, newId); s.advance(now)
+    assertEquals("c0", s.current()!!.cardId)
+  }
+
+  @Test fun rotationWaitsForTheInterval() {
+    val s = state(3)
+    assertFalse(s.rotateIfDue(now + 29 * 60_000L))
+    assertTrue(s.rotateIfDue(now + 30 * 60_000L))
+    assertEquals("c1", s.current()!!.cardId)
+  }
+
+  @Test fun dismissedCardStaysAwayUntilNextCardButWidgetKeepsIt() {
+    val s = state(3)
+    s.dismiss("c0")
+    assertEquals(GapView.Hidden, s.view(true, 9 * 60))
+    assertTrue(s.view(false, 9 * 60) is GapView.Question)
+    s.advance(now)
+    assertTrue(s.view(true, 9 * 60) is GapView.Question)
+  }
+
+  @Test fun reconfigureKeepsPendingEventsAndAckRemovesOnlyAcknowledged() {
+    val s = state(2)
+    s.answer("c0", "o", now, newId); s.advance(now); s.answer("c1", "x", now, newId)
+    s.configure(config(5), now)
+    assertEquals(2, s.events().length())
+    assertEquals("c0", s.current()!!.cardId)
+    assertTrue(s.view(true, 9 * 60) is GapView.Question)
+    s.ack(setOf("event-1", "unknown"))
+    assertEquals(listOf("event-2"), (0 until s.events().length()).map { s.events().getJSONObject(it).getString("id") })
+  }
+
+  @Test fun emptyOrMalformedDeckShowsNothing() {
+    assertEquals(GapView.Hidden, state(0).view(false, 9 * 60))
+    val bad = GapState().apply {
+      configure(config(0).put("deck", JSONArray().put(JSONObject().put("cardId", "broken"))), now)
+    }
+    assertNull(bad.current())
+    bad.advance(now)
+    assertNull(bad.answer("broken", "o", now, newId))
+  }
+
+  @Test fun persistedStateRoundTrips() {
+    val s = state(2)
+    s.answer("c0", "o", now, newId)
+    val restored = GapState(JSONObject(s.root.toString()))
+    assertTrue(restored.view(true, 9 * 60) is GapView.Result)
+    assertEquals(1, restored.events().length())
+  }
+}

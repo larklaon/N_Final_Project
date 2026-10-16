@@ -47,7 +47,8 @@ async function syncNow(repo: LearningRepository): Promise<void> {
       intervalMinutes: settings.gapIntervalMinutes,
       start: settings.gapStart,
       end: settings.gapEnd,
-      deck: enabled ? buildDeck(snapshot, repo.questions(), Date.now()) : [],
+      // The widget is placed by the user and follows the deck even when the lock-screen card is off.
+      deck: buildDeck(snapshot, repo.questions(), Date.now()),
     });
     if (!current()) continue; // A newer state replaces this deck on the next pass.
     const job = repo

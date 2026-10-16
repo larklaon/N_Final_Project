@@ -7,7 +7,7 @@
 - `npm run check`: TypeScript·ESLint·Jest 40개·콘텐츠 60개/120문항 통과
 - Kotlin/JUnit 34개 통과
 
-## 위험 1 — 오래된 인증 intent가 startForeground 없이 서비스를 멈춤 (미검증, 수정 필요)
+## 위험 1 — 오래된 인증 intent가 startForeground 없이 서비스를 멈춤 (V2.C3에서 확인·수정)
 
 - 위치: `modules/siwc-android/android/src/main/java/com/teumknowledge/siwc/AuthService.kt` `onStartCommand` 첫 분기
 - 내용: `startForegroundService()`로 전달된 intent의 시도 ID가 현재 시도가 아니면, `startForeground()`를 부르지 않고 반환한다. 진행 중인 시도가 없으면 `stopSelf(startId)`까지 부른다.
@@ -16,6 +16,12 @@
 - 근거: Android 포그라운드 서비스 동작과 공개 사례. 에뮬레이터 재현은 하지 않았다.
 - 제안: 시작 intent(취소 action이 아닌 것)는 시도 ID와 관계없이 먼저 `startForeground()`를 부른다. 오래된 intent면 직후 `stopForeground(STOP_FOREGROUND_REMOVE)`와 `stopSelf(startId)`를 한다. 취소 action은 `startService`로만 오므로 그대로 둔다.
 - 완료 기준: 시작 직후 취소, 연타, 오래된 intent 지연 도착에서 강제 종료 없음. 가능하면 instrumented test로 고정한다.
+
+### V2.C3 확인과 수정
+
+- 재현: instrumented test `native-tests/AuthServiceStaleStartTest.kt`가 이미 끝난 시도 ID로 `startForegroundService`를 보낸다. 수정 전 코드에서 `ForegroundServiceDidNotStartInTimeException`으로 프로세스가 종료되는 것을 API36 에뮬레이터에서 확인했다.
+- 수정: 취소 action이 아닌 모든 전달에서 먼저 `startForeground`를 부른다. 알림은 현재 진행 중인 시도의 취소 버튼을 유지한다. 오래된 전달이고 진행 중인 시도가 없으면 `stopForeground(STOP_FOREGROUND_REMOVE)` 후 종료한다.
+- 결과: 같은 테스트가 수정 후 통과했다(12초 대기, 인증 알림 남지 않음).
 
 ## 참고 — 경미
 
