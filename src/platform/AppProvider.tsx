@@ -9,8 +9,6 @@ import React, {
 import { AppState, Text, View, ActivityIndicator, Modal } from "react-native";
 import * as SQLite from "expo-sqlite";
 import * as Crypto from "expo-crypto";
-import * as Notifications from "expo-notifications";
-import { useRouter } from "expo-router";
 import { LearningRepository } from "../data/repositories/LearningRepository";
 import type { LearningSnapshot } from "../domain/types";
 import {
@@ -18,11 +16,7 @@ import {
   type AuthSnapshot,
   type PublicProfile,
 } from "../../modules/siwc-android";
-import {
-  reconcileNotifications,
-  withNotificationLock,
-  reminderDestination,
-} from "../services/notifications/scheduler";
+import { syncGap, withGapLock } from "../services/gap/sync";
 import { Button, Body, Title, Surface } from "../components/ui";
 import { colors } from "../theme/tokens";
 type AppContextValue = {
@@ -32,18 +26,10 @@ type AppContextValue = {
   auth: AuthSnapshot;
   profiles: PublicProfile[];
   refreshAuth: () => Promise<void>;
-  notificationError: string | null;
+  gapError: string | null;
   now: number;
 };
 const Context = createContext<AppContextValue | null>(null);
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [repo, setRepo] = useState<LearningRepository | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,23 +37,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [now, setNow] = useState(Date.now);
   const [auth, setAuth] = useState<AuthSnapshot>({ status: "disconnected" });
   const [profiles, setProfiles] = useState<PublicProfile[]>([]);
-  const [notificationError, setNotificationError] = useState<string | null>(
-    null,
-  );
-  const router = useRouter();
-  const notificationRun = useRef(0);
+  const [gapError, setGapError] = useState<string | null>(null);
+  const gapRun = useRef(0);
   const reconcile = useCallback(async () => {
     if (!repo) return;
-    const run = ++notificationRun.current;
+    const run = ++gapRun.current;
     try {
-      await reconcileNotifications(repo);
-      if (run === notificationRun.current) setNotificationError(null);
+      await syncGap(repo);
+      if (run === gapRun.current) setGapError(null);
     } catch {
-      if (run === notificationRun.current)
-        setNotificationError(
-          "알림 일정을 준비하지 못했어요. 다음 실행 때 다시 시도해요.",
+      if (run === gapRun.current)
+        setGapError(
+          "잠금 화면 카드를 준비하지 못했어요. 앱을 다시 열면 다시 시도해요.",
         );
     }
+    // Answers given outside the app may have changed the snapshot.
+    if (run === gapRun.current) setSnapshot(repo.snapshot());
   }, [repo]);
   const refresh = useCallback(() => {
     if (repo) setSnapshot(repo.snapshot());
@@ -106,7 +91,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setProfiles(list);
       };
       if (repo) {
-        await withNotificationLock(repo, read);
+        await withGapLock(repo, read);
         void reconcile();
       } else await read();
     } catch {
@@ -140,30 +125,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     return () => sub.remove();
   }, [repo, refresh, refreshAuth, reconcile]);
+  const revision = snapshot?.memoryRevision;
+  const learner = snapshot?.learnerId;
   useEffect(() => {
-    void Promise.resolve().then(reconcile);
-  }, [snapshot, reconcile]);
+    if (revision !== undefined && learner) void Promise.resolve().then(reconcile);
+  }, [revision, learner, reconcile]);
 
-  useEffect(() => {
-    if (!repo || !snapshot?.settings.onboarded) return;
-    const handle = (response: Notifications.NotificationResponse) => {
-      const d = response.notification.request.content.data ?? {};
-      const id = `${response.notification.request.identifier}:${response.notification.date}:${response.actionIdentifier}`;
-      const conceptId = reminderDestination(repo.snapshot(), d, Date.now());
-      if (conceptId === undefined || !repo.consumeEvent(id)) return;
-      if (conceptId === null) router.push("/");
-      else
-        router.push({
-          pathname: "/learn/[conceptId]",
-          params: { conceptId },
-        });
-    };
-    const sub = Notifications.addNotificationResponseReceivedListener(handle);
-    void Notifications.getLastNotificationResponseAsync().then((r) => {
-      if (r) handle(r);
-    });
-    return () => sub.remove();
-  }, [repo, router, snapshot?.settings.onboarded]);
   if (error)
     return (
       <View style={{ flex: 1, padding: 24, justifyContent: "center" }}>
@@ -191,7 +158,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         auth,
         profiles,
         refreshAuth,
-        notificationError,
+        gapError,
         now,
       }}
     >

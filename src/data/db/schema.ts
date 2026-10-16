@@ -17,3 +17,12 @@ CREATE TABLE scheduled_notifications (id TEXT PRIMARY KEY, learnerId TEXT NOT NU
 CREATE TABLE consumed_notification_events (eventId TEXT PRIMARY KEY, consumedAt INTEGER NOT NULL);
 PRAGMA user_version=1;
 `;
+
+/** V3: answers from gap surfaces and their spacing, separate from app grading. */
+export const gapSchema = `
+CREATE TABLE IF NOT EXISTS gap_progress (learnerId TEXT NOT NULL REFERENCES learners(id) ON DELETE CASCADE, conceptId TEXT NOT NULL REFERENCES concepts(id), dueAt INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY(learnerId,conceptId));
+CREATE INDEX IF NOT EXISTS gap_due ON gap_progress(learnerId,dueAt);
+CREATE TABLE IF NOT EXISTS gap_events (id TEXT PRIMARY KEY, learnerId TEXT NOT NULL REFERENCES learners(id) ON DELETE CASCADE, conceptId TEXT NOT NULL REFERENCES concepts(id), questionId TEXT NOT NULL, selectedOptionId TEXT NOT NULL, correct INTEGER NOT NULL CHECK(correct IN (0,1)), answeredAt INTEGER NOT NULL, localDate TEXT NOT NULL);
+DROP TABLE IF EXISTS scheduled_notifications;
+PRAGMA user_version=3;
+`;

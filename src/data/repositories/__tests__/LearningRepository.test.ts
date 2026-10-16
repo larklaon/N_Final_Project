@@ -1,6 +1,7 @@
 import { database } from "./database";
 import { LearningRepository, type Db } from "../LearningRepository";
 import { dailyCount } from "../../../domain/selection";
+import type { GapEvent } from "../../../domain/types";
 let db: Db;
 let repo: LearningRepository;
 let now: number;
@@ -82,11 +83,11 @@ test("cache expires and stale learner completion is ignored", () => {
   repo.cacheCompleted(other, "cross", "bad");
   expect(repo.readCache("cross")).toBeNull();
 });
-test("notifications preserve newer job revision when old reconciliation finishes", () => {
+test("gap sync preserves a newer job revision when an old sync finishes", () => {
   repo.queueNotifications();
   const job = repo.notificationJobs()[0];
-  repo.updateSettings({ dailyGoal: 5 });
-  repo.markNotifications(job.learnerId, job.revision, []);
+  repo.updateSettings({ dailyGoal: 10 });
+  repo.markGapSynced(job.learnerId, job.revision);
   expect(repo.notificationJobs()).toHaveLength(1);
 });
 
@@ -123,26 +124,147 @@ test("v1 migration retains an existing graded attempt", () => {
   expect(
     db.getFirstSync<{ user_version: number }>("PRAGMA user_version")
       ?.user_version,
-  ).toBe(2);
+  ).toBe(3);
 });
 
-test("reset disables only the current learner reminders and survives reopen", () => {
+test("reset disables only the current learner gap cards and survives reopen", () => {
   repo.selectProfile("a");
-  repo.updateSettings({ notificationsEnabled: true });
+  repo.updateSettings({ gapEnabled: true });
   const learnerA = repo.activeLearner;
   repo.selectProfile("b");
-  repo.updateSettings({ notificationsEnabled: true });
+  repo.updateSettings({ gapEnabled: true });
   repo.resetCurrent();
   const reopened = new LearningRepository(
     db,
     () => `test-${++id}`,
     () => now,
   );
-  expect(reopened.snapshot().settings.notificationsEnabled).toBe(false);
-  expect(reopened.snapshot(learnerA).settings.notificationsEnabled).toBe(true);
+  expect(reopened.snapshot().settings.gapEnabled).toBe(false);
+  expect(reopened.snapshot(learnerA).settings.gapEnabled).toBe(true);
   expect(
     reopened
       .notificationJobs()
       .some((j) => j.learnerId === reopened.activeLearner),
   ).toBe(true);
+});
+
+const gapEvent = (over: Partial<GapEvent> = {}): GapEvent => ({
+  id: "event-1",
+  learnerId: repo.activeLearner,
+  questionId: "db-primary-ox",
+  selectedOptionId: repo.quiz("db-primary-ox").correctOptionId,
+  answeredAt: now,
+  ...over,
+});
+
+test("app sessions use the deeper app-layer question", () => {
+  const session = repo.openSession("db-primary");
+  expect(session.quizId).toBe("db-primary-deep");
+  expect(repo.quiz(session.quizId).layer).toBe("app");
+  expect(session.options).toHaveLength(4);
+});
+
+test("gap answers are recorded once, recomputed from the catalog and mark the piece seen", () => {
+  const before = repo.snapshot().memoryRevision;
+  // A forged "correct" flag cannot exist: correctness comes from the catalog.
+  const wrong = repo.quiz("db-primary-ox").options.find(
+    (o) => o.id !== repo.quiz("db-primary-ox").correctOptionId,
+  )!.id;
+  expect(repo.ingestGapEvents([gapEvent({ selectedOptionId: wrong })])).toEqual(
+    ["event-1"],
+  );
+  expect(repo.ingestGapEvents([gapEvent({ selectedOptionId: wrong })])).toEqual(
+    ["event-1"],
+  );
+  const g = repo.snapshot().gapProgress["db-primary"];
+  expect(g).toMatchObject({ seen: 1, correct: 0, stage: 0, lastType: "ox" });
+  expect(g.dueAt).toBe(now + 86_400_000);
+  expect(repo.snapshot().memoryRevision).toBe(before + 1);
+  // Gap answers never grade the app layer.
+  expect(repo.snapshot().progress["db-primary"]).toBeUndefined();
+});
+
+test("gap events for unknown learners, unknown or app questions are acknowledged but dropped", () => {
+  const ids = repo.ingestGapEvents([
+    gapEvent({ id: "x1", learnerId: "deleted-learner" }),
+    gapEvent({ id: "x2", questionId: "missing" }),
+    gapEvent({ id: "x3", questionId: "db-primary-deep", selectedOptionId: "a" }),
+    gapEvent({ id: "x4", selectedOptionId: "zzz" }),
+  ]);
+  expect(ids).toEqual(["x1", "x2", "x3", "x4"]);
+  expect(repo.snapshot().gapProgress).toEqual({});
+});
+
+test("events are attributed to the learner that answered, not the active one", () => {
+  const guest = repo.activeLearner;
+  repo.selectProfile("a");
+  repo.selectProfile("b");
+  repo.ingestGapEvents([gapEvent({ learnerId: guest })]);
+  expect(repo.snapshot().gapProgress).toEqual({});
+  expect(repo.snapshot(guest).gapProgress["db-primary"].seen).toBe(1);
+});
+
+test("a wrong graded app answer puts the piece on the lock screen tomorrow", () => {
+  repo.ingestGapEvents([gapEvent()]);
+  expect(repo.snapshot().gapProgress["db-primary"].dueAt).toBe(
+    now + 86_400_000,
+  );
+  now += 3 * 86_400_000;
+  const s = repo.openSession("db-primary");
+  repo.submit(s.id, "b");
+  expect(repo.snapshot().gapProgress["db-primary"]).toMatchObject({
+    stage: 0,
+    seen: 1,
+    dueAt: now + 86_400_000,
+  });
+});
+
+test("pre-V2 settings are normalized and v2 data migrates to v3", () => {
+  const learner = repo.activeLearner;
+  db.runSync(
+    "UPDATE learner_settings SET data=? WHERE learnerId=?",
+    JSON.stringify({
+      dailyGoal: 1,
+      notificationsEnabled: true,
+      reminderSlots: ["20:30"],
+      quietStart: "22:00",
+      quietEnd: "07:00",
+      selectedModel: null,
+      aiConsentAt: null,
+      onboarded: true,
+    }),
+    learner,
+  );
+  db.execSync(
+    "DROP TABLE gap_events; DROP TABLE gap_progress; PRAGMA user_version=2;",
+  );
+  const reopened = new LearningRepository(
+    db,
+    () => `test-${++id}`,
+    () => now,
+  );
+  const settings = reopened.snapshot().settings as unknown as Record<
+    string,
+    unknown
+  >;
+  expect(settings).toMatchObject({
+    dailyGoal: 3,
+    gapEnabled: false,
+    onboarded: true,
+  });
+  expect(settings.reminderSlots).toBeUndefined();
+  expect(reopened.snapshot().gapProgress).toEqual({});
+});
+
+test("settings reject unsupported goals, intervals and inverted card hours", () => {
+  expect(() => repo.updateSettings({ dailyGoal: 4 })).toThrow();
+  expect(() => repo.updateSettings({ gapIntervalMinutes: 5 })).toThrow();
+  expect(() =>
+    repo.updateSettings({ gapStart: "22:00", gapEnd: "07:00" }),
+  ).toThrow();
+  repo.updateSettings({ dailyGoal: 10, gapIntervalMinutes: 60 });
+  expect(repo.snapshot().settings).toMatchObject({
+    dailyGoal: 10,
+    gapIntervalMinutes: 60,
+  });
 });

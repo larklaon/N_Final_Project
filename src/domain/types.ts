@@ -17,7 +17,13 @@ export type Quiz = {
   id: string;
   conceptId: string;
   type: "choice" | "ox";
+  /** gap: glanceable card outside the app. app: deeper in-app question. */
+  layer: "gap" | "app";
   prompt: string;
+  context?: string;
+  contextIsCode?: boolean;
+  /** Concepts an app question leans on; seen gap pieces among them are surfaced. */
+  builtOn?: string[];
   options: { id: string; text: string }[];
   correctOptionId: string;
   explanation: string;
@@ -26,10 +32,10 @@ export type Quiz = {
 };
 export type Settings = {
   dailyGoal: number;
-  notificationsEnabled: boolean;
-  reminderSlots: string[];
-  quietStart: string;
-  quietEnd: string;
+  gapEnabled: boolean;
+  gapIntervalMinutes: number;
+  gapStart: string;
+  gapEnd: string;
   selectedModel: string | null;
   aiConsentAt: number | null;
   onboarded: boolean;
@@ -56,11 +62,28 @@ export type Attempt = {
   answeredAt: number;
   localDate: string;
 };
+export type GapProgress = {
+  stage: number;
+  dueAt: number;
+  seen: number;
+  correct: number;
+  lastSeenAt: number | null;
+  lastType: "choice" | "ox" | null;
+};
+/** One answer given on a gap surface (lock-screen card or widget), recorded natively. */
+export type GapEvent = {
+  id: string;
+  learnerId: string;
+  questionId: string;
+  selectedOptionId: string;
+  answeredAt: number;
+};
 export type LearningSnapshot = {
   learnerId: string;
   settings: Settings;
   concepts: Concept[];
   progress: Record<string, Progress>;
+  gapProgress: Record<string, GapProgress>;
   attempts: Attempt[];
   memoryRevision: number;
 };

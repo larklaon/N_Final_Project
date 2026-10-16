@@ -5,6 +5,7 @@ import type { LearningSnapshot } from "../../../domain/types";
 const s: LearningSnapshot = {
   learnerId: "local-a",
   settings: defaultSettings,
+  gapProgress: {},
   concepts: [
     {
       id: "c",

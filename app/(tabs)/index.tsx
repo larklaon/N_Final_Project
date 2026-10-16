@@ -16,7 +16,7 @@ import {
   nextConcept,
 } from "../../src/domain/selection";
 export default function Today() {
-  const { snapshot, notificationError, now } = useApp();
+  const { snapshot, gapError, now } = useApp();
   const router = useRouter();
   const count = dailyCount(snapshot, now);
   const next = nextConcept(snapshot, now);
@@ -72,7 +72,7 @@ export default function Today() {
           ? `다시 살펴볼 개념이 ${due}개 있어요.`
           : "지금 급한 복습은 없어요."}
       </Small>
-      {notificationError && <Message text={notificationError} />}
+      {gapError && <Message text={gapError} />}
       <Small>AI 작성 기초 콘텐츠 · 기준 자료를 함께 확인해 주세요.</Small>
     </Screen>
   );

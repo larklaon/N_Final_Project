@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import catalog from "../content/catalog.json";
-import { schema } from "../db/schema";
+import { gapSchema, schema } from "../db/schema";
+import { advanceGap, requeueGap } from "../../domain/gap";
 import {
   advanceProgress,
   canGrade,
@@ -11,6 +12,8 @@ import {
 import type {
   Attempt,
   Concept,
+  GapEvent,
+  GapProgress,
   LearningSnapshot,
   Quiz,
   Session,
@@ -20,12 +23,14 @@ export type Db = Pick<
   SQLiteDatabase,
   "execSync" | "getFirstSync" | "getAllSync" | "runSync" | "withTransactionSync"
 >;
+export const dailyGoals = [3, 5, 10];
+export const gapIntervals = [15, 30, 60];
 export const defaultSettings: Settings = {
-  dailyGoal: 3,
-  notificationsEnabled: false,
-  reminderSlots: ["20:30"],
-  quietStart: "22:00",
-  quietEnd: "07:00",
+  dailyGoal: 5,
+  gapEnabled: false,
+  gapIntervalMinutes: 30,
+  gapStart: "07:00",
+  gapEnd: "22:00",
   selectedModel: null,
   aiConsentAt: null,
   onboarded: false,
@@ -41,7 +46,7 @@ export class LearningRepository {
     const version = db.getFirstSync<{ user_version: number }>(
       "PRAGMA user_version",
     )!.user_version;
-    if (version > 2)
+    if (version > 3)
       throw Error(
         "이 버전의 앱에서 데이터를 열 수 없어요. 앱 업데이트를 확인해 주세요.",
       );
@@ -52,6 +57,7 @@ export class LearningRepository {
           "ALTER TABLE ai_cache ADD COLUMN conceptId TEXT REFERENCES concepts(id); PRAGMA user_version=2;",
         ),
       );
+    if (version < 3) db.withTransactionSync(() => db.execSync(gapSchema));
     db.withTransactionSync(() => {
       for (const c of catalog.concepts)
         db.runSync(
@@ -103,12 +109,14 @@ export class LearningRepository {
     return this.meta("activeLearner")!;
   }
   snapshot(learnerId = this.activeLearner): LearningSnapshot {
-    const settings = JSON.parse(
-      this.db.getFirstSync<{ data: string }>(
-        "SELECT data FROM learner_settings WHERE learnerId=?",
-        learnerId,
-      )!.data,
-    ) as Settings;
+    const settings = normalizeSettings(
+      JSON.parse(
+        this.db.getFirstSync<{ data: string }>(
+          "SELECT data FROM learner_settings WHERE learnerId=?",
+          learnerId,
+        )!.data,
+      ),
+    );
     const concepts = this.db
       .getAllSync<{ data: string }>("SELECT data FROM concepts")
       .map((r) => JSON.parse(r.data) as Concept)
@@ -119,6 +127,12 @@ export class LearningRepository {
       learnerId,
     ))
       progress[row.conceptId] = JSON.parse(row.data);
+    const gapProgress: Record<string, GapProgress> = {};
+    for (const row of this.db.getAllSync<{ conceptId: string; data: string }>(
+      "SELECT conceptId,data FROM gap_progress WHERE learnerId=?",
+      learnerId,
+    ))
+      gapProgress[row.conceptId] = JSON.parse(row.data);
     const attempts = this.db.getAllSync<Attempt>(
       "SELECT id,conceptId,quizId,correct,isGraded,answeredAt,localDate FROM attempts WHERE learnerId=? ORDER BY answeredAt DESC",
       learnerId,
@@ -128,6 +142,7 @@ export class LearningRepository {
       settings,
       concepts,
       progress,
+      gapProgress,
       attempts,
       memoryRevision: this.db.getFirstSync<{ revision: number }>(
         "SELECT revision FROM memory_state WHERE learnerId=?",
@@ -139,22 +154,17 @@ export class LearningRepository {
     const learner = this.activeLearner;
     const old = this.snapshot().settings;
     const settings = { ...old, ...patch };
-    if (![1, 3, 5].includes(settings.dailyGoal))
-      throw Error("하루 목표는 1·3·5개 중에서 선택해 주세요.");
+    if (!dailyGoals.includes(settings.dailyGoal))
+      throw Error("하루에 풀 문제는 3·5·10개 중에서 골라 주세요.");
+    if (!gapIntervals.includes(settings.gapIntervalMinutes))
+      throw Error("카드가 바뀌는 간격은 15·30·60분 중에서 골라 주세요.");
+    const time = /^([01]\d|2[0-3]):[0-5]\d$/;
     if (
-      settings.reminderSlots.length < 1 ||
-      settings.reminderSlots.length > 3 ||
-      new Set(settings.reminderSlots).size !== settings.reminderSlots.length ||
-      settings.reminderSlots.some(
-        (t) =>
-          !/^([01]\d|2[0-3]):[0-5]\d$/.test(t) ||
-          t >= settings.quietStart ||
-          t < settings.quietEnd,
-      )
+      !time.test(settings.gapStart) ||
+      !time.test(settings.gapEnd) ||
+      settings.gapStart >= settings.gapEnd
     )
-      throw Error(
-        "알림은 07:00~21:59 사이의 서로 다른 시간 1~3개로 설정해 주세요.",
-      );
+      throw Error("카드를 보여 줄 시간은 시작이 끝보다 앞서야 해요.");
     this.db.withTransactionSync(() => {
       this.db.runSync(
         "UPDATE learner_settings SET data=? WHERE learnerId=?",
@@ -216,6 +226,81 @@ export class LearningRepository {
     if (!row) throw Error("문제를 찾지 못했어요.");
     return JSON.parse(row.data);
   }
+  private allQuestions: Quiz[] | null = null;
+  questions(): Quiz[] {
+    this.allQuestions ??= this.db
+      .getAllSync<{ data: string }>("SELECT data FROM quizzes")
+      .map((r) => JSON.parse(r.data) as Quiz);
+    return this.allQuestions;
+  }
+  private saveGap(learner: string, conceptId: string, g: GapProgress) {
+    this.db.runSync(
+      "INSERT INTO gap_progress VALUES (?,?,?,?) ON CONFLICT(learnerId,conceptId) DO UPDATE SET dueAt=excluded.dueAt,data=excluded.data",
+      learner,
+      conceptId,
+      g.dueAt,
+      JSON.stringify(g),
+    );
+  }
+  /**
+   * Record answers given on gap surfaces. Idempotent per event id. Correctness is
+   * recomputed from the catalog; events for unknown learners or questions are dropped.
+   * Returns the ids that are safe to acknowledge to the native side.
+   */
+  ingestGapEvents(events: GapEvent[]): string[] {
+    const handled: string[] = [];
+    const byId = new Map(this.questions().map((q) => [q.id, q]));
+    this.db.withTransactionSync(() => {
+      const touched = new Set<string>();
+      for (const e of [...events].sort((a, b) => a.answeredAt - b.answeredAt)) {
+        handled.push(e.id);
+        const q = byId.get(e.questionId);
+        const known = this.db.getFirstSync<{ id: string }>(
+          "SELECT id FROM learners WHERE id=?",
+          e.learnerId,
+        );
+        if (
+          !q ||
+          q.layer !== "gap" ||
+          !known ||
+          !q.options.some((o) => o.id === e.selectedOptionId) ||
+          !Number.isFinite(e.answeredAt)
+        )
+          continue;
+        const correct = e.selectedOptionId === q.correctOptionId;
+        const inserted = this.db.runSync(
+          "INSERT OR IGNORE INTO gap_events VALUES (?,?,?,?,?,?,?,?)",
+          e.id,
+          e.learnerId,
+          q.conceptId,
+          q.id,
+          e.selectedOptionId,
+          correct ? 1 : 0,
+          e.answeredAt,
+          localDate(e.answeredAt),
+        );
+        if (inserted.changes !== 1) continue;
+        const old = this.db.getFirstSync<{ data: string }>(
+          "SELECT data FROM gap_progress WHERE learnerId=? AND conceptId=?",
+          e.learnerId,
+          q.conceptId,
+        );
+        this.saveGap(
+          e.learnerId,
+          q.conceptId,
+          advanceGap(
+            old ? JSON.parse(old.data) : undefined,
+            correct,
+            e.answeredAt,
+            q.type,
+          ),
+        );
+        touched.add(e.learnerId);
+      }
+      for (const learner of touched) this.touch(learner);
+    });
+    return handled;
+  }
   openSession(conceptId: string): Session {
     const s = this.snapshot();
     const concept = s.concepts.find((c) => c.id === conceptId);
@@ -233,9 +318,7 @@ export class LearningRepository {
       .map((r) => JSON.parse(r.data) as Session)
       .find((row) => !row.answer && row.practice === practice);
     if (existing) return existing;
-    const quiz = this.quiz(
-      `${conceptId}-${p?.lastQuizType === "choice" ? "ox" : "choice"}`,
-    );
+    const quiz = this.quiz(`${conceptId}-deep`);
     // Shuffle once at session creation; the persisted order survives reopening.
     const options = [...quiz.options];
     for (let i = options.length - 1; i > 0; i--) {
@@ -323,6 +406,19 @@ export class LearningRepository {
           next.revision,
           JSON.stringify(next),
         );
+        if (!correct) {
+          // The piece returns to the lock screen tomorrow.
+          const gap = this.db.getFirstSync<{ data: string }>(
+            "SELECT data FROM gap_progress WHERE learnerId=? AND conceptId=?",
+            learner,
+            session.conceptId,
+          );
+          this.saveGap(
+            learner,
+            session.conceptId,
+            requeueGap(gap ? JSON.parse(gap.data) : undefined, now),
+          );
+        }
         this.touch(learner);
       }
       this.db.runSync(
@@ -391,20 +487,8 @@ export class LearningRepository {
       attempts: number;
     }>("SELECT * FROM automation_jobs");
   }
-  markNotifications(
-    learner: string,
-    revision: number,
-    entries: { id: string; fingerprint: string }[],
-  ) {
+  markGapSynced(learner: string, revision: number) {
     this.db.withTransactionSync(() => {
-      this.db.runSync("DELETE FROM scheduled_notifications");
-      for (const e of entries)
-        this.db.runSync(
-          "INSERT INTO scheduled_notifications VALUES (?,?,?)",
-          e.id,
-          learner,
-          e.fingerprint,
-        );
       this.db.runSync(
         "DELETE FROM automation_jobs WHERE learnerId=? AND revision=?",
         learner,
@@ -433,14 +517,15 @@ export class LearningRepository {
         "learning_sessions",
         "attempts",
         "concept_progress",
+        "gap_progress",
+        "gap_events",
         "ai_cache",
-        "scheduled_notifications",
         "automation_jobs",
       ])
         this.db.runSync(`DELETE FROM ${table} WHERE learnerId=?`, learner);
       const settings = {
         ...this.snapshot().settings,
-        notificationsEnabled: false,
+        gapEnabled: false,
       };
       this.db.runSync(
         "UPDATE learner_settings SET data=? WHERE learnerId=?",
@@ -458,4 +543,23 @@ export class LearningRepository {
       this.setMeta("activeLearner", this.createLearner(null));
     });
   }
+}
+
+/** Stored settings may predate V2 (old reminder fields, daily goal 1). */
+export function normalizeSettings(raw: Partial<Settings>): Settings {
+  const merged = { ...defaultSettings, ...raw } as Settings &
+    Record<string, unknown>;
+  for (const old of [
+    "notificationsEnabled",
+    "reminderSlots",
+    "quietStart",
+    "quietEnd",
+  ])
+    delete merged[old];
+  if (!dailyGoals.includes(merged.dailyGoal))
+    merged.dailyGoal =
+      dailyGoals.find((n) => n >= merged.dailyGoal) ?? defaultSettings.dailyGoal;
+  if (!gapIntervals.includes(merged.gapIntervalMinutes))
+    merged.gapIntervalMinutes = defaultSettings.gapIntervalMinutes;
+  return merged;
 }

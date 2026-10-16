@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Linking, Switch, TextInput, View } from "react-native";
+import { Alert, Linking, Switch, View } from "react-native";
 import { useRouter } from "expo-router";
 import {
   Screen,
@@ -14,11 +14,11 @@ import {
 import { useApp } from "../../src/platform/AppProvider";
 import { getSiwc } from "../../modules/siwc-android";
 import {
-  enableReminders,
-  mutateLearningWithNotifications,
-} from "../../src/services/notifications/scheduler";
+  enableGap,
+  mutateLearningWithGap,
+} from "../../src/services/gap/sync";
 import { useProfileModels } from "../../src/services/ai/useProfileModels";
-import { colors, type } from "../../src/theme/tokens";
+import { colors } from "../../src/theme/tokens";
 const labels = {
   disconnected: "아직 연결하지 않았어요",
   authorizing: "브라우저에서 연결 중",
@@ -37,14 +37,6 @@ export default function Settings() {
     error: modelError,
     retry: retryModels,
   } = useProfileModels(auth, refreshAuth);
-  const [slotDraft, setSlotDraft] = useState<{
-    learner: string;
-    value: string;
-  } | null>(null);
-  const slots =
-    slotDraft?.learner === snapshot.learnerId
-      ? slotDraft.value
-      : snapshot.settings.reminderSlots.join(", ");
   async function run(action: () => void | Promise<void>) {
     setBusy(true);
     setError("");
@@ -94,7 +86,7 @@ export default function Settings() {
           style: "destructive",
           onPress: () =>
             void run(async () => {
-              await mutateLearningWithNotifications(repo, async () => {
+              await mutateLearningWithGap(repo, async () => {
                 if (all) {
                   await getSiwc().eraseAll();
                   repo.eraseAll();
@@ -110,7 +102,7 @@ export default function Settings() {
     <Screen tabScreen>
       <Heading>학습</Heading>
       <Small>정보처리기사 기초 · 하루 목표</Small>
-      {[1, 3, 5].map((n) => (
+      {[3, 5, 10].map((n) => (
         <Choice
           key={n}
           label={`${n}개`}
@@ -119,7 +111,7 @@ export default function Settings() {
           onPress={() => void run(() => repo.updateSettings({ dailyGoal: n }))}
         />
       ))}
-      <Heading>학습 알림</Heading>
+      <Heading>잠금 화면 카드</Heading>
       <View
         style={{
           flexDirection: "row",
@@ -128,59 +120,20 @@ export default function Settings() {
           gap: 16,
         }}
       >
-        <Body>알림 받기</Body>
+        <Body>잠금 화면 카드</Body>
         <Switch
-          accessibilityLabel="학습 알림 받기"
-          value={snapshot.settings.notificationsEnabled}
+          accessibilityLabel="잠금 화면 카드"
+          value={snapshot.settings.gapEnabled}
           disabled={busy}
           trackColor={{ true: colors.primary }}
           onValueChange={(enabled) =>
             void run(async () => {
-              if (enabled) await enableReminders(repo);
-              else repo.updateSettings({ notificationsEnabled: false });
+              if (enabled) await enableGap(repo);
+              else repo.updateSettings({ gapEnabled: false });
             })
           }
         />
       </View>
-      <Small>
-        하루 1~3회, 07:00~21:59 사이예요. 여러 시간은 쉼표로 나눠 주세요.
-      </Small>
-      <TextInput
-        accessibilityLabel="알림 시간"
-        value={slots}
-        onChangeText={(value) =>
-          setSlotDraft({ learner: snapshot.learnerId, value })
-        }
-        placeholder="20:30, 12:30"
-        placeholderTextColor={colors.textSecondary}
-        style={{
-          ...type.body,
-          borderColor: colors.controlBorder,
-          borderWidth: 1,
-          borderRadius: 12,
-          padding: 16,
-          color: colors.textPrimary,
-        }}
-      />
-      <Button
-        secondary
-        label="알림 시간 저장"
-        disabled={busy}
-        onPress={() =>
-          void run(() =>
-            repo.updateSettings({
-              reminderSlots: slots
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean),
-            }),
-          )
-        }
-      />
-      <Small>
-        절전 모드에서는 늦게 도착할 수 있어요. 앱 강제 중지 또는 7일 이상 미실행
-        시 알림이 멈출 수 있어요.
-      </Small>
       <Button
         secondary
         label="Android 알림 설정"
@@ -234,7 +187,7 @@ export default function Settings() {
         disabled={busy}
         onPress={() =>
           void run(async () => {
-            await mutateLearningWithNotifications(repo, async () => {
+            await mutateLearningWithGap(repo, async () => {
               await getSiwc().selectProfile(null);
               repo.selectProfile(null);
             });
@@ -249,7 +202,7 @@ export default function Settings() {
           label={`${p.profileId === auth.profileId ? "현재 · " : ""}${p.label}${p.connected ? "" : " · 재연결 필요"}`}
           onPress={() =>
             void run(async () => {
-              await mutateLearningWithNotifications(repo, async () => {
+              await mutateLearningWithGap(repo, async () => {
                 await getSiwc().selectProfile(p.profileId);
                 repo.selectProfile(p.profileId);
               });
