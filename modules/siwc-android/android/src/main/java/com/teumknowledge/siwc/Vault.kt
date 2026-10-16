@@ -13,7 +13,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /** All OAuth credentials stay in one encrypted, atomically replaced native record. */
-class Vault(context: Context) {
+class Vault(context: Context) : CredentialStore {
  private val file = AtomicFile(File(context.noBackupFilesDir, "siwc.enc"))
  private val alias = "teum.siwc.v1"
  private val metadata = AtomicFile(File(context.noBackupFilesDir,"siwc-metadata.json"))
@@ -25,7 +25,7 @@ class Vault(context: Context) {
        .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build())
    }.generateKey()
  }
- @Synchronized fun load(): JSONObject {
+ @Synchronized override fun load(): JSONObject {
    if (!file.baseFile.exists()) return loadMetadata()
    return try {
      val bytes=file.readFully(); require(bytes.size>28)
@@ -48,14 +48,14 @@ class Vault(context: Context) {
    try { out.write(meta.toString().toByteArray(Charsets.UTF_8));metadata.finishWrite(out) }
    catch(e:Exception) { metadata.failWrite(out);throw e }
  }
- @Synchronized fun save(record: JSONObject) {
+ @Synchronized override fun save(record: JSONObject) {
    saveMetadata(record)
    val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE,key()) }
    val out = file.startWrite()
    try { out.write(cipher.iv); out.write(cipher.doFinal(record.toString().toByteArray(Charsets.UTF_8))); file.finishWrite(out) }
    catch (e: Exception) { file.failWrite(out); throw e }
  }
- @Synchronized fun erase() {
+ @Synchronized override fun erase() {
    file.delete();metadata.delete()
    KeyStore.getInstance("AndroidKeyStore").apply { load(null); if (containsAlias(alias)) deleteEntry(alias) }
  }

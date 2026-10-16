@@ -21,7 +21,7 @@ class OAuthTokenClient(private val http: OkHttpClient, private val endpoint: Str
  }
 }
 
-/** Called inside the manager's credential lock. Never expose this record to JS. */
+/** Operates on an isolated copy; persist performs the guarded atomic commit. Never expose this record to JS. */
 object SessionTokens {
  private val terminalRefreshCodes=setOf("invalid_grant","invalid_token","invalid_refresh_token","token_expired","refresh_token_expired","refresh_token_invalidated","refresh_token_reused")
  fun clear(c: JSONObject) { listOf("access_token","refresh_token","id_token","expires_at").forEach { c.remove(it) } }

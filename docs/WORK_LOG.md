@@ -1,5 +1,12 @@
 # 개발 기록
 
+## 2026-10-16 — FIX.C2 — SIWC 세션 동시성 정리
+
+- 상태: Codex가 시작한 SessionRegistry/ResourceAccess 리팩터를 SiwcManager에 연결해 마무리. Astra 독립 재검수 대기.
+- 변경: 토큰 갱신·모델 목록·응답·로그아웃 revoke의 네트워크를 자격증명 잠금 밖으로 이동. 갱신 결과는 revision이 아닌 저장된 grant 비교로 커밋해, 전송된 refresh 도중 계정 전환·취소가 있어도 회전된 토큰을 잃지 않음(로그아웃·삭제 뒤에는 폐기). 401은 GET만 1회 갱신 재시도, POST는 재전송 없이 갱신 후 사용자 재시도. 사용자 취소는 연결 문제로 표시하지 않음. 인증 시도는 AttemptSlot으로 중복 실행·이전 시도의 정리 간섭 방지. 로그아웃은 로컬 토큰 제거 후 revoke.
+- 검증: TypeScript·ESLint 통과. Kotlin/JUnit30개(SessionRegistry7·ResourceAccess6 추가) 통과. :app:assembleDebug 통과, API36에서 설정 상태 조회·연결 시작(브라우저·foreground service)·취소 후 서비스 종료 확인.
+- 제한: 실제 계정 OAuth/AI·토큰 회전은 여전히 미검증.
+
 ## 2026-10-16 — FIX.C1 — 검수7건 수정
 
 - 상태: 보고된7건 구현 수정·관련 회귀 검증 완료. Astra 독립 재검수 대기.
