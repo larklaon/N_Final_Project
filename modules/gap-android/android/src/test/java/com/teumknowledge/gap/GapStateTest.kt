@@ -121,4 +121,11 @@ class GapStateTest {
     val again = GapState(JSONObject(s.root.toString())).view(false, 9 * 60) as GapView.Result
     assertEquals("용어 해설", again.shown.feedback)
   }
+
+  @Test fun questionCarriesItsDeckPositionForWidgetRotation() {
+    val s = state(3)
+    assertEquals(0, (s.view(false, 9 * 60) as GapView.Question).position)
+    s.advance(now)
+    assertEquals(1, (s.view(false, 9 * 60) as GapView.Question).position)
+  }
 }

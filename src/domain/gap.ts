@@ -59,8 +59,11 @@ export type GapCard = {
   options: Quiz["options"];
   correctOptionId: string;
   feedback: string;
-  /** Same piece, other shapes: the widget picks one by its size (small: ox, larger: term). */
-  variants: { ox?: GapVariant; term?: GapVariant };
+  /**
+   * Same piece, other shapes. The widget rotates through the ones its size can hold:
+   * small ox; default term·ox; large term·choice·ox.
+   */
+  variants: { ox?: GapVariant; choice?: GapVariant; term?: GapVariant };
 };
 
 function variant(q: Quiz, concept: Concept, seed: string): GapVariant {
@@ -115,7 +118,9 @@ export function buildDeck(
     if (!q) continue;
     const cardId = `${s.learnerId}:${s.memoryRevision}:${cards.length}`;
     const { questionId, ...main } = variant(q, concept, cardId);
-    const ox = (byConcept.get(concept.id) ?? []).find((x) => x.type === "ox");
+    const own = byConcept.get(concept.id) ?? [];
+    const ox = own.find((x) => x.type === "ox");
+    const choice = own.find((x) => x.type === "choice");
     const term = termQuestion(concept, s.concepts);
     cards.push({
       cardId,
@@ -127,6 +132,7 @@ export function buildDeck(
       ...main,
       variants: {
         ox: ox && variant(ox, concept, cardId),
+        choice: choice && variant(choice, concept, cardId),
         term: term ? variant(term, concept, cardId) : undefined,
       },
     });

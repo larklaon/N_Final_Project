@@ -55,13 +55,14 @@ test("feedback stays short enough for a notification line", () => {
     expect(card.feedback.length).toBeLessThanOrEqual(120);
 });
 
-test("every card carries an O/X and a four-way term question for the widget", () => {
+test("every card carries O/X, choice and a four-way term question for the widget", () => {
   const repo = setup();
   const s = repo.snapshot();
   const deck = buildDeck(s, repo.questions(), now, 60);
   for (const card of deck) {
-    const { ox, term } = card.variants;
+    const { ox, choice, term } = card.variants;
     expect(ox?.type).toBe("ox");
+    expect(choice?.options).toHaveLength(3);
     expect(term?.options).toHaveLength(4);
     expect(new Set(term!.options.map((o) => o.id)).size).toBe(4);
     expect(term!.correctOptionId).toBe(card.conceptId);

@@ -142,10 +142,17 @@ object GapSurfaces {
   }
 
   /**
-   * The widget changes its question with its size: small asks the piece as O/X beside the band,
-   * the default size asks "which term is this?" in a 2x2 grid, large lists the four terms.
+   * A bigger widget can ask every shape a smaller one can, plus its own, and rotates through
+   * them card by card: small O/X; default adds "which term is this?" in a 2x2 grid; large adds
+   * the longer authored choice and lists options in rows.
    */
-  private enum class WidgetSize { SMALL, MEDIUM, LARGE }
+  private enum class WidgetSize(val shapes: List<String>) {
+    SMALL(listOf("ox")), MEDIUM(listOf("term", "ox")), LARGE(listOf("term", "choice", "ox"))
+  }
+  private fun shapeFor(card: GapCard, size: WidgetSize, position: Int): GapCard {
+    val keys = size.shapes.filter { it in card.variants }
+    return if (keys.isEmpty()) card else card.variant(keys[position % keys.size])
+  }
   private val cellIds = intArrayOf(R.id.gap_widget_cell_1, R.id.gap_widget_cell_2, R.id.gap_widget_cell_3, R.id.gap_widget_cell_4)
   private val rowIds = intArrayOf(R.id.gap_widget_row_1, R.id.gap_widget_row_2, R.id.gap_widget_row_3, R.id.gap_widget_row_4)
 
@@ -188,7 +195,7 @@ object GapSurfaces {
         showOnly(null)
       }
       is GapView.Question -> {
-        val shape = view.card.variant(if (small) "ox" else "term")
+        val shape = shapeFor(view.card, size, view.position)
         if (!small) v.setTextViewText(R.id.gap_widget_area, view.card.area)
         v.setTextViewText(R.id.gap_widget_prompt, shape.prompt)
         val buttons = when {

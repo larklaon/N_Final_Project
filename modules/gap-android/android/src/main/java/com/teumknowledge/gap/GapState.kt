@@ -15,7 +15,7 @@ data class GapCard(
   val options: List<GapOption>,
   val correctOptionId: String,
   val feedback: String,
-  /** Same piece in other shapes ("ox", "term"); the widget picks one by its size. */
+  /** Same piece in other shapes ("ox", "choice", "term"); the widget picks one by its size. */
   val variants: Map<String, GapCard> = emptyMap(),
 ) {
   val isOx get() = type == "ox"
@@ -31,7 +31,8 @@ data class GapAnswer(val selected: String, val correct: Boolean)
 /** What a surface should draw right now. */
 sealed class GapView {
   object Hidden : GapView()
-  data class Question(val card: GapCard) : GapView()
+  /** [position] is the card's place in the deck; the widget rotates shapes with it. */
+  data class Question(val card: GapCard, val position: Int = 0) : GapView()
   /** [shown] is the shape that was answered: the card, or a widget variant of it. */
   data class Result(val card: GapCard, val answer: GapAnswer, val shown: GapCard = card) : GapView()
 }
@@ -69,7 +70,7 @@ class GapState(val root: JSONObject = JSONObject()) {
     if (forNotification && (!enabled || !inWindow(minuteOfDay) || root.optString("dismissed") == card.cardId))
       return GapView.Hidden
     val answered = root.optJSONObject("answer")?.optString("questionId")
-    return answer?.let { GapView.Result(card, it, card.shape(answered) ?: card) } ?: GapView.Question(card)
+    return answer?.let { GapView.Result(card, it, card.shape(answered) ?: card) } ?: GapView.Question(card, index)
   }
 
   /** Replace config from JS. Pending events survive; display restarts at the new deck's first card. */
