@@ -1,6 +1,25 @@
 # 개발 검증 결과
 
-최신 상태는 FIX.C3이다. FIX.C2 재검수에서 추가 결함을 확인한 뒤 사용자 요청으로 수정했다. TypeScript·ESLint·Jest40개·Kotlin34개·콘텐츠 구조·Android debug/AndroidTest build가 통과했다. [재검수·수정·산출물](REVIEW_C2_AND_FIXES.md)을 확인한다. 아래 M7.C2/FIX.C1 수치는 이전 checkpoint 기록이다.
+## V2 (2026-10-16, V2.C1–C5)
+
+| 항목 | 결과 |
+| --- | --- |
+| TypeScript strict · ESLint | 통과 |
+| Jest | 53개 통과 (저장소·마이그레이션 v3·틈새 반영·카드 묶음·퍼즐·동기화 경쟁·AI 화면·설정) |
+| 콘텐츠 구조 | 개념 60, 틈새 카드 120, 앱 문제 60 통과 |
+| Expo Doctor | 21/21 통과 |
+| Kotlin/JUnit | 42개 통과 (GapState 8 추가) |
+| Android debug · AndroidTest build | 성공 |
+| Instrumented (API36 ARM64) | MainFlowTest(온보딩→문제→맞음→재실행 후 진도 유지→퍼즐), LayoutTest(현재 표시 설정), AuthServiceStaleStartTest(수정 전 강제 종료 재현, 수정 후 통과) |
+| 틈새 카드 | 알림창에서 게시(무음·공개·Silent 그룹 위)·O 응답→결과→다음·앱 재실행 시 반영 확인. 에뮬레이터에 잠금 화면 보안이 없어 잠금 화면 자체 표시는 미확인 |
+| 홈 위젯 | 배치 요청·표시·응답·알림과 상태 공유 확인 |
+| 글씨 200%·밀도·가로 조합 | 이번에는 미실행 (`scripts/native-layout-check.py`, 에뮬레이터 표시 설정 변경 필요) |
+| 실제 OAuth / AI response.completed | 미검증 |
+| 실기기(삼성 One UI 등) 카드·위젯 렌더링 | 미검증 |
+| 콘텐츠 개별 출처 대조 | 미완료·AI 초안 표시 |
+| 외부 배포 서명·EAS | 미설정 |
+
+아래는 이전 checkpoint 기록이다.
 
 기준: 2026-10-15. 자동 검사, 실제 Android 실행, 외부 계정 검증을 구분합니다.
 
