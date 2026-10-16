@@ -392,10 +392,9 @@ export default function Settings() {
             }
           />
           <Row
-            label="사용량 관리"
-            onPress={() =>
-              void Linking.openURL("https://chatgpt.com/settings/usage")
-            }
+            label="AI 사용량"
+            sub="이 기기의 응답 수·토큰 사용 기록"
+            onPress={() => router.push("/usage")}
             last={!auth.profileId}
           />
           {auth.profileId && (

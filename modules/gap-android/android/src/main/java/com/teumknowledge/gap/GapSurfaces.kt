@@ -143,18 +143,38 @@ object GapSurfaces {
     if (ids.isEmpty()) return
     val v = RemoteViews(context.packageName, R.layout.gap_widget)
     v.setOnClickPendingIntent(R.id.gap_widget_root, openApp(context))
+    // Accept both the original result container and the in-progress band layout.
+    // Resource lookups keep either layout buildable while its visual work is separate.
+    fun optionalId(name: String) = context.resources.getIdentifier(name, "id", context.packageName)
+    fun visible(name: String, show: Boolean) {
+      val id = optionalId(name); if (id != 0) v.setViewVisibility(id, if (show) View.VISIBLE else View.GONE)
+    }
+    val bandLayout = optionalId("gap_widget_verdict") != 0
+    visible("gap_widget_verdict", false)
+    visible("gap_widget_ox", false)
+    if (bandLayout) { visible("gap_widget_feedback", false); visible("gap_widget_next", false) }
     when (view) {
       is GapView.Hidden -> {
         v.setTextViewText(R.id.gap_widget_area, "틈지식")
         v.setTextViewText(R.id.gap_widget_prompt, "앱을 한 번 열면 여기에 문제가 놓여요.")
         v.setViewVisibility(R.id.gap_widget_options, View.GONE)
-        v.setViewVisibility(R.id.gap_widget_result, View.GONE)
+        visible("gap_widget_result", false)
       }
       is GapView.Question -> {
         v.setTextViewText(R.id.gap_widget_area, view.card.area)
         v.setTextViewText(R.id.gap_widget_prompt, view.card.prompt)
-        v.setViewVisibility(R.id.gap_widget_options, View.VISIBLE)
-        v.setViewVisibility(R.id.gap_widget_result, View.GONE)
+        v.setViewVisibility(R.id.gap_widget_options, if (bandLayout && view.card.isOx) View.GONE else View.VISIBLE)
+        visible("gap_widget_result", false)
+        if (bandLayout && view.card.isOx) {
+          visible("gap_widget_ox", true)
+          listOf("gap_widget_o", "gap_widget_x").forEachIndexed { i, name ->
+            val id = optionalId(name); val option = view.card.options.getOrNull(i)
+            if (id != 0 && option != null) {
+              v.setTextViewText(id, shortLabel(view.card, option))
+              v.setOnClickPendingIntent(id, answer(context, view.card, option))
+            }
+          }
+        }
         val widgetIds = intArrayOf(R.id.gap_widget_option_1, R.id.gap_widget_option_2, R.id.gap_widget_option_3)
         widgetIds.forEachIndexed { i, id ->
           val option = view.card.options.getOrNull(i)
@@ -167,7 +187,8 @@ object GapSurfaces {
         v.setTextViewText(R.id.gap_widget_prompt, resultTitle(view.card, view.answer))
         v.setTextViewText(R.id.gap_widget_feedback, view.card.feedback)
         v.setViewVisibility(R.id.gap_widget_options, View.GONE)
-        v.setViewVisibility(R.id.gap_widget_result, View.VISIBLE)
+        visible("gap_widget_result", true)
+        if (bandLayout) { visible("gap_widget_feedback", true); visible("gap_widget_next", true) }
         v.setOnClickPendingIntent(R.id.gap_widget_next, next(context, view.card))
       }
     }

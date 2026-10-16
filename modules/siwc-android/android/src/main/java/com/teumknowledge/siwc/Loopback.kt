@@ -29,9 +29,9 @@ class Loopback : AutoCloseable {
          val pairs=query.map { URLDecoder.decode(it[0],"UTF-8") to URLDecoder.decode(it.getOrElse(1){""},"UTF-8") }
          val params=pairs.toMap()
          val valid=validHeader && pairs.size==params.size && Protocol.same(params["state"] ?: "", state)
-         val body=if(valid) "<html><meta charset='utf-8'><body>인증 결과를 받았습니다. 앱으로 돌아가세요. <a href='teumknowledge://auth/return'>틈지식 열기</a></body></html>" else "Invalid callback"
+         val body=CallbackPage.html(valid, params.containsKey("error"))
          val data=body.toByteArray(Charsets.UTF_8)
-         s.getOutputStream().write(("HTTP/1.1 ${if(valid) "200 OK" else "400 Bad Request"}\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nContent-Security-Policy: default-src 'none'; navigate-to teumknowledge:\r\nConnection: close\r\nContent-Length: ${data.size}\r\n\r\n").toByteArray(Charsets.US_ASCII)+data)
+         s.getOutputStream().write(("HTTP/1.1 ${if(valid) "200 OK" else "400 Bad Request"}\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nX-Content-Type-Options: nosniff\r\nContent-Security-Policy: ${CallbackPage.csp}\r\nConnection: close\r\nContent-Length: ${data.size}\r\n\r\n").toByteArray(Charsets.US_ASCII)+data)
          if(valid) return params
        } catch (_: java.io.IOException) { /* Bad requests do not consume the pending attempt. */ }
          catch (_: IllegalArgumentException) { /* Malformed percent encoding. */ }

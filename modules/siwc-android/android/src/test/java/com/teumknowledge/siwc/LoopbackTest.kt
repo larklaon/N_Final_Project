@@ -17,7 +17,11 @@ class LoopbackTest {
        val result=pool.submit<Map<String,String>> { server.await("fixture-state") };val port=URI(server.redirect).port
        assertTrue(request(port,"/wrong?state=fixture-state").startsWith("HTTP/1.1 400"))
        assertTrue(request(port,"/auth/callback?state=wrong&code=not-redeemed").startsWith("HTTP/1.1 400"))
-       assertTrue(request(port,"/auth/callback?state=fixture-state&code=fixture-code&client_id=fixture-client").startsWith("HTTP/1.1 200"))
+       val page=request(port,"/auth/callback?state=fixture-state&code=fixture-code&client_id=fixture-client")
+       assertTrue(page.startsWith("HTTP/1.1 200"))
+       assertTrue(page.contains("name=\"viewport\""));assertTrue(page.contains("틈지식으로 돌아가기"))
+       assertTrue(page.contains("Referrer-Policy: no-referrer"));assertTrue(page.contains("default-src 'none'"))
+       assertFalse(page.contains("fixture-code"));assertFalse(page.contains("fixture-state"))
        assertEquals("fixture-code",result.get(3,TimeUnit.SECONDS)["code"])
      } finally { pool.shutdownNow() }
    }

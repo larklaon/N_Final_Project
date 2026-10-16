@@ -1,8 +1,9 @@
 import { useEffect } from "react";
+import { StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useApp } from "../../src/platform/AppProvider";
 import type { AuthSnapshot } from "../../modules/siwc-android";
-import { Screen, Heading, Body, Button } from "../../src/components/ui";
+import { Screen, Heading, Body, Button, Row } from "../../src/components/ui";
 
 function result(auth: AuthSnapshot) {
   if (auth.status === "authorizing")
@@ -51,13 +52,17 @@ export default function AuthReturn() {
   }, [refreshAuth]);
   const [title, message] = result(auth);
   return (
-    <Screen>
-      <Heading>{title}</Heading>
-      <Body>{message}</Body>
+    <Screen back={false}>
+      <View style={styles.message}>
+        <Heading>{title}</Heading>
+        <Body>{message}</Body>
+      </View>
       <Button
-        label="설정으로 돌아가기"
-        onPress={() => router.replace("/settings")}
+        label={auth.status === "ready" ? "학습 시작하기" : "설정으로 돌아가기"}
+        onPress={() => router.replace(auth.status === "ready" ? "/" : "/settings")}
       />
+      {auth.status === "ready" && <Row label="AI 사용량 보기" onPress={() => router.replace("/usage")} last />}
     </Screen>
   );
 }
+const styles = StyleSheet.create({ message: { gap: 24, paddingTop: 64, paddingBottom: 48 } });

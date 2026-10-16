@@ -22,3 +22,9 @@
 FIX.C1에서 terminal refresh 오류의 credential 폐기/재연결과 명시적 플랜 권한 재동의 경로를 추가했다. 테스트된 URL/fixture 계약과 실제 계정 성공은 구분한다. 상세 내용은 [REVIEW_FIXES](REVIEW_FIXES.md)를 따른다.
 
 FIX.C3에서 네트워크를 Expo 기본 큐에서도 분리하고, 인증 서비스의 시도 ID·timeout·정리 경쟁을 수정했다. HTTP 실패의 status/code/parameter/request ID는 원문 응답·토큰 없이 전달한다. 상세 근거와 실제 계정 미검증 경계는 [재검수·수정 기록](REVIEW_C2_AND_FIXES.md)에 있다.
+
+## SIWC.U1 — 사용량과 복귀 화면 (2026-10-16)
+
+공식 [UI/UX 지침](https://developers.openai.com/siwc/ui-ux-guidelines)에 따라 플랜 사용 표시와 ChatGPT 사용량 관리 링크를 둔다. 앱의 `AI 사용량`은 **이 기기에서 이 기능 추가 이후 관측한 완료 응답**의 최근 30일 기록이다. 구독 잔여 한도가 아니며, 미완료 요청에서 소비된 사용량이나 다른 기기/앱 사용량은 포함하지 않는다. `response.completed.response.usage`에 입력·출력 토큰이 있을 때만 합산한다. 수치는 계정별 네이티브 no-backup 파일에 저장하고 전체 데이터 삭제 때 제거한다. 본문/질문/이메일/토큰은 사용 기록에 넣지 않는다.
+
+API36에서 기존 연결의 ready 표시, 모바일 브라우저 정적 미리보기의 앱 복귀 버튼, 사용량 화면을 확인했다. 새 실제 인증·추론 성공을 수행했다는 의미는 아니다. 해당 변경의 SIWC Kotlin 38개/Jest74개 및 APK 빌드 결과는 WORK_LOG에 기록했다.

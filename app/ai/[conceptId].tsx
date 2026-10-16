@@ -326,6 +326,10 @@ function AskAiScreen() {
         </View>
       ) : (
         <View style={s.composer}>
+          <Pressable accessibilityRole="button" accessibilityLabel="ChatGPT 플랜 사용 중, AI 사용량 보기"
+            onPress={() => router.push("/usage")} style={{ minHeight: 48, justifyContent: "center" }}>
+            <Text style={{ ...type.small, color: colors.bandText2 }}>ChatGPT 플랜 사용 중 · 사용량 보기</Text>
+          </Pressable>
           {(messages.length === 0 || !!question) && !quote && !busy && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               {prompts.map((t) => (

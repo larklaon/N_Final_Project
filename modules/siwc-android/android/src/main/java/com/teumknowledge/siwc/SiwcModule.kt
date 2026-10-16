@@ -25,6 +25,9 @@ class SiwcModule : Module() {
    AsyncFunction("listModels") Coroutine { id: String ->
      withContext(Dispatchers.IO) { manager().models(id) }
    }
+   AsyncFunction("getUsage") Coroutine { id: String ->
+     withContext(Dispatchers.IO) { manager().usageSummary(id) }
+   }
    AsyncFunction("startResponse") { request: String->manager().startResponse(request) }
    AsyncFunction("cancelResponse") { id: String->manager().cancelResponse(id) }
    AsyncFunction("eraseAll") { manager().eraseAll() }
