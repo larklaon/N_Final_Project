@@ -23,7 +23,10 @@ export function useProfileModels(
         .listModels(profileId)
         .then(
           (models) => {
-            if (current) setResult({ profileId, models, error: "" });
+            if (current) {
+              setResult({ profileId, models, error: "" });
+              void refreshAuth();
+            }
           },
           () => {
             if (!current) return;

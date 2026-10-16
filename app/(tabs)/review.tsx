@@ -21,7 +21,7 @@ export default function Review() {
   const open = (id: string) =>
     router.push({ pathname: "/learn/[conceptId]", params: { conceptId: id } });
   return (
-    <Screen>
+    <Screen tabScreen>
       <Heading>지금 복습</Heading>
       {due.length ? (
         due.map((c) => (

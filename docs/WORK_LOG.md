@@ -1,5 +1,14 @@
 # 개발 기록
 
+## 2026-10-16 — FIX.C3 — 재검수 결함 수정
+
+- 상태: FIX.C2 독립 재검수에서 결함을 재현했고, 사용자의 즉시 수정 지시에 따라 구현·회귀 검증 완료. 수정 후 별도의 독립 재검수는 수행하지 않았다.
+- 변경: Expo 네트워크 진입점의 IO coroutine 분리, 인증 서비스의 시도별 수명·취소·timeout 격리, 오래된 인증 커밋의 부작용 방지, 미래 시각별 알림 대상과 알림 탭 재평가, 초기 buffer를 포함한 AI 이벤트 처리 통합, 인증 결과 화면·오류 진단·프로필 상태 일치, 알림 오류 회복, 탭 bottom inset 중복 제거.
+- 검증: typecheck/lint/Jest40개·Kotlin34개·콘텐츠60개/120문항·Android debug/AndroidTest build 통과. 수정 전 실패한 service 경쟁·알림·AI 맥락·인증 복귀 재현을 회귀 검사로 전환. UI/API36 및 APK 정보는 REVIEW_C2_AND_FIXES에 기록.
+- 미검증: 실제 OAuth/AI·실제 토큰 회전·실기기 알림·보안/출처 대조·외부 배포. 인간 참여는 추후 과제 조건.
+- 보존: 기존 미추적 제품 방향·UI 검토 초안은 변경·stage하지 않았다. 의존성·DB 스키마 변경 없음.
+- 다음: 실제 계정/배포 조건은 미검증 목록으로 유지. 추가 제품 방향은 별도 확정 후 반영.
+
 ## 2026-10-16 — FIX.C2 — SIWC 세션 동시성 정리
 
 - 상태: Codex가 시작한 SessionRegistry/ResourceAccess 리팩터를 SiwcManager에 연결해 마무리. Astra 독립 재검수 대기.

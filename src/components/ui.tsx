@@ -13,10 +13,12 @@ import { colors, type } from "../theme/tokens";
 export function Screen({
   children,
   topInset = false,
+  tabScreen = false,
   scrollKey,
 }: {
   children: React.ReactNode;
   topInset?: boolean;
+  tabScreen?: boolean;
   scrollKey?: string;
 }) {
   const { width } = useWindowDimensions();
@@ -27,11 +29,12 @@ export function Screen({
   }, [scrollKey]);
   return (
     <SafeAreaView
-      edges={
-        topInset
-          ? ["top", "left", "right", "bottom"]
-          : ["left", "right", "bottom"]
-      }
+      edges={[
+        "left",
+        "right",
+        ...(topInset ? ["top" as const] : []),
+        ...(!tabScreen || width >= 840 ? ["bottom" as const] : []),
+      ]}
       style={s.safe}
     >
       <ScrollView

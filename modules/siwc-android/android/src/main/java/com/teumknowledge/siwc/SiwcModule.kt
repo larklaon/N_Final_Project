@@ -1,7 +1,10 @@
 package com.teumknowledge.siwc
 
 import expo.modules.kotlin.modules.Module
+import expo.modules.kotlin.functions.Coroutine
 import expo.modules.kotlin.modules.ModuleDefinition
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class SiwcModule : Module() {
  private fun manager(): SiwcManager=SiwcManager.get(appContext.reactContext ?: error("no_context"))
@@ -16,8 +19,12 @@ class SiwcModule : Module() {
    AsyncFunction("signIn") { profileId: String?, requestPlanConsent: Boolean -> manager().begin(profileId,requestPlanConsent) }
    AsyncFunction("cancelSignIn") { manager().cancelAuth() }
    AsyncFunction("selectProfile") { id: String?->manager().select(id) }
-   AsyncFunction("signOut") { id: String->manager().signOut(id) }
-   AsyncFunction("listModels") { id: String->manager().models(id) }
+   AsyncFunction("signOut") Coroutine { id: String ->
+     withContext(Dispatchers.IO) { manager().signOut(id) }
+   }
+   AsyncFunction("listModels") Coroutine { id: String ->
+     withContext(Dispatchers.IO) { manager().models(id) }
+   }
    AsyncFunction("startResponse") { request: String->manager().startResponse(request) }
    AsyncFunction("cancelResponse") { id: String->manager().cancelResponse(id) }
    AsyncFunction("eraseAll") { manager().eraseAll() }

@@ -23,8 +23,10 @@ class SessionRegistry(private val store: CredentialStore, private val clock: ()-
  fun <T> read(block:(JSONObject)->T):T = synchronized(lock) { block(store.load()) }
  /** Credential or active-profile changes invalidate leases; bookkeeping writes (host, pending client) do not. */
  fun update(invalidating:Boolean=true, block:(JSONObject)->Unit) = synchronized(lock) {
+   val record=store.load();block(record)
+   // A rejected stale auth commit must not invalidate another live operation.
    if(invalidating) invalidate()
-   val record=store.load();block(record);store.save(record)
+   store.save(record)
  }
  fun invalidate() = synchronized(lock) { revision++;calls.keys.toList().forEach { it.cancel() };issues.clear() }
  fun erase() = synchronized(lock) { invalidate();store.erase() }

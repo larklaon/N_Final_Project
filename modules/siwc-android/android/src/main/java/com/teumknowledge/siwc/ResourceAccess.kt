@@ -49,9 +49,19 @@ class ResourceAccess(
  private fun note(lease:CredentialLease,e:Exception) {
    if(e is ResourceFailure && e.status==401)
      registry.markIssue(lease,"ChatGPT 계정과 플랜 사용 권한을 확인해 주세요. 연결 상태를 다시 확인하거나 다시 연결할 수 있어요.")
+   else if(e is ResourceFailure && e.status==403)
+     registry.markIssue(lease,"선택한 계정·워크스페이스 또는 서비스 정책에서 이 요청을 허용하지 않아요. 연결 권한을 확인해 주세요.")
+   else if(e is ResourceFailure && e.status==429)
+     registry.markIssue(lease,"ChatGPT 사용 한도에 도달했어요. 사용량 관리에서 앱 사용량을 확인해 주세요.")
    else if(e is IOException)
      registry.markIssue(lease,"잠시 ChatGPT에 연결할 수 없어요. 네트워크를 확인한 뒤 연결 상태를 다시 확인해 주세요.")
  }
+ private fun recover(id:String,lease:CredentialLease,permitted:()->Boolean,failure:ResourceFailure):CredentialLease =
+   try { registry.access(id,refresh,permitted,lease) }
+   catch(e:Exception) {
+     // Keep admission diagnostics even when refresh itself fails or no refresh grant exists.
+     e.addSuppressed(failure);note(lease,if(e is IOException) e else failure);throw e
+   }
  fun models(id:String):List<Map<String,String>> {
    val operation="models:${UUID.randomUUID()}"
    var lease=registry.access(id,refresh,allowed)
@@ -63,7 +73,7 @@ class ResourceAccess(
    try {
      val result=try { read() } catch(e:ResourceFailure) {
        if(e.status!=401) throw e
-       lease=registry.access(id,refresh,allowed,lease)
+       lease=recover(id,lease,allowed,e)
        read() // One safe GET retry. No generation request is replayed here.
      }
      registry.clearIssue(lease);return result
@@ -77,10 +87,23 @@ class ResourceAccess(
      registry.clearIssue(lease)
    } catch(e:Exception) {
      if(e is ResourceFailure && e.status==401) {
-       try { lease=registry.access(id,refresh,permitted,lease) }
-       catch(refreshError:Exception) { note(lease,refreshError);throw refreshError }
+       lease=recover(id,lease,permitted,e)
      }
      note(lease,e);throw e // Explicit user retry is required for every failed POST.
    }
  }
+}
+
+/** Public diagnostics are allowlisted scalars. Raw bodies, headers and OAuth tokens never cross the bridge. */
+fun responseFailureEvent(id:String,error:Exception):Map<String,Any> {
+ val result=mutableMapOf<String,Any>("requestId" to id,"type" to "failed",
+   "code" to (error.message?.takeIf { it.matches(Regex("[a-z0-9_]{1,128}")) } ?: "network_error"))
+ val failure=(error as? ResourceFailure) ?: error.suppressed.filterIsInstance<ResourceFailure>().firstOrNull()
+ if(failure!=null) {
+   result["httpStatus"]=failure.status;result["bodyShape"]=failure.bodyShape
+   if(failure.code.matches(Regex("[a-zA-Z0-9_-]{1,128}"))) result["errorCode"]=failure.code
+   failure.parameter?.takeIf { it.matches(Regex("[a-zA-Z0-9_.\\[\\]-]{1,128}")) }?.let { result["parameter"]=it }
+   failure.requestId?.takeIf { it.matches(Regex("[a-zA-Z0-9_-]{1,200}")) }?.let { result["serverRequestId"]=it }
+ }
+ return result
 }

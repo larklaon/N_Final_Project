@@ -1,6 +1,6 @@
 # 개발 검증 결과
 
-2026-10-16 독립 검수의 결함7건을 FIX.C1에서 수정했습니다. [수정·회귀 검증 결과](REVIEW_FIXES.md)와 [수정 전 독립 검수](ASTRA_REVIEW.md)를 구분합니다. Astra 독립 재검수는 대기 중입니다.
+최신 상태는 FIX.C3이다. FIX.C2 재검수에서 추가 결함을 확인한 뒤 사용자 요청으로 수정했다. TypeScript·ESLint·Jest40개·Kotlin34개·콘텐츠 구조·Android debug/AndroidTest build가 통과했다. [재검수·수정·산출물](REVIEW_C2_AND_FIXES.md)을 확인한다. 아래 M7.C2/FIX.C1 수치는 이전 checkpoint 기록이다.
 
 기준: 2026-10-15. 자동 검사, 실제 Android 실행, 외부 계정 검증을 구분합니다.
 
@@ -45,7 +45,7 @@ API36 ARM64 Development Build의 합성 학습 기록입니다. 개발 도구 �
 
 Metro를 8081에서 실행하고, BUILD 절차에 더해 `:app:assembleDebugAndroidTest`를 빌드하여 앱과 테스트 APK를 설치합니다. `TEUM_RESET_FIXTURES=1 bash scripts/native-smoke.sh`는 이름이 teum-api36인 에뮬레이터에서만 합성 학습 DB를 초기화하고 실행합니다. 개인 기기나 실사용자 데이터에 실행하지 않습니다. 개발용 첫 안내와 스크롤 제스처 안정화를 테스트에서 처리합니다.
 
-큰 글씨·가로·실기기 제스처·실제 계정 흐름의 독립 검토는 아직 완료 전입니다.
+큰 글씨·가로 탭은 API36 에뮬레이터에서 FIX.C1 이후 재확인했다. 실기기 제스처·실제 계정 흐름은 미검증이다.
 
 ## 2026-10-16 — M7.C2 APK
 

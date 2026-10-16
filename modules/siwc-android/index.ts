@@ -15,6 +15,7 @@ export type AuthSnapshot = {
   status: AuthStatus;
   profileId?: string;
   message?: string;
+  authOutcome?: "succeeded" | "failed" | "cancelled";
 };
 export type ModelChoice = { slug: string; displayName: string };
 export type AiEvent = {
@@ -22,6 +23,11 @@ export type AiEvent = {
   type: "delta" | "completed" | "failed" | "cancelled";
   text?: string;
   code?: string;
+  errorCode?: string;
+  httpStatus?: number;
+  parameter?: string;
+  serverRequestId?: string;
+  bodyShape?: string;
 };
 export type AiRequest = {
   profileId: string;

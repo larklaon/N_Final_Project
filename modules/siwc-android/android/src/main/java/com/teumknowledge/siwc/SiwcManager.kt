@@ -23,6 +23,7 @@ class SiwcManager private constructor(private val context: Context) {
  private val http=OkHttpClient.Builder().connectTimeout(10,TimeUnit.SECONDS).readTimeout(30,TimeUnit.SECONDS).callTimeout(25,TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build()
  @Volatile var emit: ((Map<String,Any>)->Unit)?=null
  @Volatile private var authMessage: String?=null
+ private var authOutcome: String?=null
  private data class Attempt(val id: String, val profile: String?, val state: String, val nonce: String, val verifier: String, val loop: Loopback, val requestPlanConsent: Boolean)
  private val attempt=AttemptSlot<Attempt>(registry.lock)
  private val resources=ResourceAccess(registry,http,{ fields,_ -> OAuthTokenClient(http).request(fields) },{ attempt.current()==null },
@@ -48,28 +49,38 @@ class SiwcManager private constructor(private val context: Context) {
      }
      // Resource issues stay advisory: the profile remains usable so an explicit retry can recover it.
      val message=authMessage ?: id?.let { registry.issue(it) }
-     mutableMapOf<String,Any>("status" to status).apply { if(id!=null) put("profileId",id); message?.let { put("message",it) } }
+     mutableMapOf<String,Any>("status" to status).apply {
+       if(id!=null) put("profileId",id)
+       message?.let { put("message",it) }
+       authOutcome?.let { put("authOutcome",it) }
+     }
    } catch (_: Exception) { mapOf("status" to "reconnectRequired", "message" to "보호된 인증 정보를 읽지 못했어요. 다시 연결해 주세요.") }
  }
  fun listProfiles(): List<Map<String,Any>> = registry.read { r ->
    val p=profiles(r); p.keys().asSequence().map { id -> val c=p.getJSONObject(id)
-     mapOf("profileId" to id,"label" to c.optString("label","저장된 계정"),"connected" to c.has("access_token")) }.toList()
+     mapOf("profileId" to id,"label" to c.optString("label","저장된 계정"),"connected" to !SessionTokens.requiresReconnect(c)) }.toList()
  }
- fun begin(profileId: String?, requestPlanConsent: Boolean = false): Map<String,Any> {
+ fun begin(profileId: String?, requestPlanConsent: Boolean = false): Map<String,Any> = synchronized(registry.lock) {
    if(attempt.current()!=null) return state()
    cancelResponse()
    if(profileId!=null) registry.read { credential(it,profileId) }
    host()
    val a=Attempt(UUID.randomUUID().toString(),profileId,Protocol.random(),Protocol.random(),Protocol.random(),Loopback(),requestPlanConsent)
    if(!attempt.start(a.id,a)) { a.loop.close();return state() }
-   authMessage=null
-   try { context.startForegroundService(Intent(context,AuthService::class.java)) }
-   catch(e: Exception) { attempt.finish(a.id) { it.loop.close() };throw e }
+   authMessage=null;authOutcome=null
+   try { context.startForegroundService(Intent(context,AuthService::class.java).apply { putExtra("attemptId",a.id) }) }
+   catch(e: Exception) {
+     attempt.finish(a.id) { it.loop.close() };authOutcome="failed"
+     authMessage="연결을 시작하지 못했어요. 다시 시도해 주세요."
+     throw e
+   }
    return state()
  }
+ fun currentAttemptId():String? = attempt.current()?.id
+ fun isCurrentAttempt(id:String):Boolean = attempt.isCurrent(id)
  /** Runs at most once per attempt, even if the service receives repeated start commands. */
- fun performAuth() {
-   val a=attempt.current()?.let { attempt.claim(it.id) } ?: return
+ fun performAuth(attemptId:String) {
+   val a=attempt.claim(attemptId) ?: return
    io.execute {
      try {
        val saved=registry.read { r -> a.profile?.let { JSONObject(credential(r,it).toString()) } }
@@ -98,32 +109,45 @@ class SiwcManager private constructor(private val context: Context) {
          val c=JSONObject().put("issuer",identity.issuer).put("subject",identity.subject).put("client_id",issued)
            .put("label","ChatGPT · ${id.take(6)}")
          SessionTokens.save(c,token);p.put(id,c);r.put("active",id);r.remove("pending_client")
-         authMessage=null
+         authMessage=null;authOutcome="succeeded"
        }
      } catch(e: Exception) {
-       if(attempt.isCurrent(a.id)) authMessage=if(e.message=="access_denied") "연결을 취소했어요." else "연결하지 못했어요. 다시 시도해 주세요."
+       synchronized(registry.lock) {
+         if(attempt.isCurrent(a.id)) {
+           authOutcome=if(e.message=="access_denied") "cancelled" else "failed"
+           authMessage=if(e.message=="access_denied") "연결을 취소했어요." else "연결하지 못했어요. 다시 시도해 주세요."
+         }
+       }
      } finally {
        a.loop.close()
-       if(attempt.finish(a.id) {}) context.stopService(Intent(context,AuthService::class.java))
+       attempt.finish(a.id) { context.stopService(Intent(context,AuthService::class.java)) }
      }
    }
  }
- fun cancelAuth() {
-   val a=attempt.current()
-   if(a!=null && attempt.finish(a.id) { it.loop.close() }) authMessage="연결을 취소했어요."
-   context.stopService(Intent(context,AuthService::class.java))
+ fun cancelAuth(expectedId:String?=null, timedOut:Boolean=false):Boolean = synchronized(registry.lock) {
+   val a=attempt.current() ?: return false
+   if(expectedId!=null && expectedId!=a.id) return false
+   attempt.finish(a.id) {
+     it.loop.close()
+     authMessage=if(timedOut) "연결 시간이 지났어요. 다시 시도해 주세요." else "연결을 취소했어요."
+     authOutcome=if(timedOut) "failed" else "cancelled"
+     context.stopService(Intent(context,AuthService::class.java))
+   }
  }
  private fun getJson(url: String): JSONObject =
    http.newCall(Request.Builder().url(url).build()).execute().use { res -> require(res.isSuccessful) { "http_${res.code}" };JSONObject(res.body?.string() ?: error("empty_body")) }
- fun select(id: String?): Map<String,Any> {
+ fun select(id: String?): Map<String,Any> = synchronized(registry.lock) {
    cancelResponse();cancelAuth()
    registry.update { r -> if(id==null) r.remove("active") else { credential(r,id);r.put("active",id) } }
+   authMessage=null;authOutcome=null
    return state()
  }
  /** Tokens are removed locally before any network call; revocation is best effort. */
  fun signOut(id: String): Map<String,Boolean> {
-   cancelResponse();cancelAuth()
-   val c=registry.clear(id)
+   val c=synchronized(registry.lock) {
+     cancelResponse();cancelAuth();authMessage=null;authOutcome=null
+     registry.clear(id)
+   }
    val revoked=try {
      val discovery=getJson(Protocol.DISCOVERY)
      require(discovery.getString("issuer")==Protocol.ISSUER && discovery.getString("revocation_endpoint")=="${Protocol.ISSUER}/api/accounts/oauth/revoke")
@@ -135,7 +159,7 @@ class SiwcManager private constructor(private val context: Context) {
    return mapOf("revoked" to revoked)
  }
  fun models(id: String): List<Map<String,String>> = resources.models(id)
- @Synchronized fun startResponse(raw: String): Map<String,String> {
+ fun startResponse(raw: String): Map<String,String> = synchronized(registry.lock) {
    responseId?.let { return mapOf("requestId" to it) }
    val q=JSONObject(raw);require(q.getString("instructions").length<=16000 && q.getJSONArray("input").toString().length<=24000)
    val id=UUID.randomUUID().toString();responseId=id
@@ -154,16 +178,16 @@ class SiwcManager private constructor(private val context: Context) {
          acc.end()
        }
      } catch(e: Exception) {
-       if(responseId==id) emit?.invoke(mapOf("requestId" to id,"type" to "failed","code" to (e.message?.takeIf { it.matches(Regex("[a-z0-9_]+")) } ?: "network_error")))
-     } finally { synchronized(this) { if(responseId==id) responseId=null } }
+       if(responseId==id) emit?.invoke(responseFailureEvent(id,e))
+     } finally { synchronized(registry.lock) { if(responseId==id) responseId=null } }
    }
    return mapOf("requestId" to id)
  }
- @Synchronized fun cancelResponse(id: String?=null) {
+ fun cancelResponse(id: String?=null):Unit = synchronized(registry.lock) {
    val current=responseId ?: return
    if(id!=null && current!=id) return
    responseId=null;registry.cancelCalls(current)
    emit?.invoke(mapOf("requestId" to current,"type" to "cancelled"))
  }
- fun eraseAll() { cancelResponse();cancelAuth();registry.erase();authMessage=null }
+ fun eraseAll() = synchronized(registry.lock) { cancelResponse();cancelAuth();registry.erase();authMessage=null;authOutcome=null }
 }

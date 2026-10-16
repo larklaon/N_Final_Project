@@ -20,6 +20,7 @@ import {
   PROMPT_VERSION,
   type AiMode,
 } from "../../src/services/ai/context";
+import { aiErrorMessage } from "../../src/services/ai/errors";
 import { useProfileModels } from "../../src/services/ai/useProfileModels";
 import { colors, type } from "../../src/theme/tokens";
 export default function AiExplanation() {
@@ -51,6 +52,7 @@ function AiExplanationScreen() {
   } | null>(null);
   const lastPair = useRef<{ question: string; answer: string } | null>(null);
   const mounted = useRef(true);
+  const handleEvent = useRef<(event: AiEvent) => void>(() => {});
   const concept = snapshot.concepts.find((c) => c.id === conceptId);
   useEffect(() => {
     mounted.current = true;
@@ -77,11 +79,7 @@ function AiExplanationScreen() {
       }
       if (event.type === "failed") {
         setStatus("failed");
-        setError(
-          event.code?.includes("usage")
-            ? "ChatGPT 사용 한도에 도달했어요. 사용량을 확인해 주세요."
-            : "설명을 마치지 못했어요. 기본 설명은 계속 이용할 수 있어요.",
-        );
+        setError(aiErrorMessage(event));
         active.current = null;
         void refreshAuth();
       }
@@ -90,6 +88,7 @@ function AiExplanationScreen() {
         active.current = null;
       }
     }
+    handleEvent.current = handle;
     let sub: { remove(): void } | undefined;
     try {
       sub = getSiwc().addListener("onResponse", handle);
@@ -155,10 +154,24 @@ function AiExplanationScreen() {
         Crypto.CryptoDigestAlgorithm.SHA256,
         fingerprint,
       );
+      if (
+        active.current !== a ||
+        !mounted.current ||
+        a.learner !== repo.activeLearner
+      )
+        return;
       const cached = repo.readCache(a.key);
       if (cached) {
         setText(cached);
         setStatus("cached");
+        lastPair.current = {
+          question:
+            normalized ||
+            (mode === "example"
+              ? "일상적인 예시로 설명해 주세요."
+              : "쉽게 다시 설명해 주세요."),
+          answer: cached,
+        };
         active.current = null;
         return;
       }
@@ -205,28 +218,9 @@ function AiExplanationScreen() {
         return;
       }
       a.requestId = result.requestId;
-      // Native events normally arrive after this promise. Replay a terminal event if transport completed unusually fast.
-      for (const e of a.buffer) {
-        if (e.requestId !== result.requestId) continue;
-        if (e.type === "delta") setText((t) => t + (e.text ?? ""));
-        else if (e.type === "completed") {
-          setText(e.text ?? "");
-          setStatus("completed");
-          repo.cacheCompleted(a.learner, a.key, e.text ?? "", conceptId);
-          active.current = null;
-        } else {
-          setStatus(e.type === "cancelled" ? "cancelled" : "failed");
-          if (e.type === "failed") {
-            setError(
-              e.code?.includes("usage")
-                ? "ChatGPT 사용 한도에 도달했어요. 사용량을 확인해 주세요."
-                : "설명을 마치지 못했어요. ChatGPT 연결을 확인하거나 다시 시도해 주세요.",
-            );
-            void refreshAuth();
-          }
-          active.current = null;
-        }
-      }
+      // All events use the same state transitions, regardless of bridge/promise ordering.
+      const buffered = a.buffer.splice(0);
+      for (const event of buffered) handleEvent.current(event);
     } catch (e) {
       if (active.current === a) {
         active.current = null;

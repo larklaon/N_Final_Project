@@ -22,7 +22,7 @@ export default function Today() {
   const next = nextConcept(snapshot, now);
   const due = dueConcepts(snapshot, now).length;
   return (
-    <Screen>
+    <Screen tabScreen>
       <Small>
         {new Date(now).toLocaleDateString("ko-KR", {
           month: "long",

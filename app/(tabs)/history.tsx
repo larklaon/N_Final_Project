@@ -19,7 +19,7 @@ export default function History() {
     };
   });
   return (
-    <Screen>
+    <Screen tabScreen>
       <Heading>차곡차곡 쌓인 기록</Heading>
       <Surface>
         <Body>

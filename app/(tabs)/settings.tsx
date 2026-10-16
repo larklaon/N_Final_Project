@@ -107,7 +107,7 @@ export default function Settings() {
     );
   }
   return (
-    <Screen>
+    <Screen tabScreen>
       <Heading>학습</Heading>
       <Small>정보처리기사 기초 · 하루 목표</Small>
       {[1, 3, 5].map((n) => (

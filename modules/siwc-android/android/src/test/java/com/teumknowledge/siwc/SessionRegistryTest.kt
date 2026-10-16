@@ -84,4 +84,11 @@ class SessionRegistryTest {
    assertFalse(slot.finish("one") { fail("stale cleanup") })
    assertTrue(slot.isCurrent("two"))
  }
+ @Test fun rejectedMutationDoesNotInvalidateCurrentLease() {
+   val registry=SessionRegistry(store(expiresAt=now+3_600_000)) { now }
+   val lease=registry.access("a",{ _,_ -> error("must_not_refresh") })
+   assertThrows(IllegalArgumentException::class.java) { registry.update { require(false) { "stale_attempt" } } }
+   assertTrue(registry.isCurrent(lease))
+ }
+
 }

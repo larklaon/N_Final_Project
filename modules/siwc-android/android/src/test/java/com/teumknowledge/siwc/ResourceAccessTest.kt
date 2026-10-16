@@ -74,4 +74,24 @@ class ResourceAccessTest {
    val error=assertThrows(IllegalArgumentException::class.java) { access.response("a","op",body(),{ false }) {} }
    assertEquals("cancelled",error.message);assertEquals(0,server.requestCount)
  }
+ @Test fun rejectedCredentialWithoutRefreshKeepsAdmissionDiagnostics() {
+   store.record.getJSONObject("profiles").getJSONObject("a").remove("refresh_token")
+   server.enqueue(MockResponse().setResponseCode(401).setBody("{\"detail\":\"fixture permission rejection\"}").setHeader("x-request-id","req-fixture"))
+   val error=assertThrows(IllegalArgumentException::class.java) { access.response("a","op",body(),{ true }) {} }
+   assertNotNull(registry.issue("a"))
+   assertEquals("fixture-old-access",store.record.getJSONObject("profiles").getJSONObject("a").getString("access_token"))
+   val event=responseFailureEvent("op",error)
+   assertEquals(401,event["httpStatus"]);assertEquals("detail",event["bodyShape"]);assertEquals("req-fixture",event["serverRequestId"])
+   assertEquals(0,refreshes.get());assertEquals(1,server.requestCount)
+ }
+ @Test fun permissionErrorPreservesSafeStructuredFieldsWithoutRawBody() {
+   val failure=ResourceFailure.parse(403,"{\"error\":{\"code\":\"subscription_sharing_user_not_eligible\",\"param\":\"model\",\"message\":\"sensitive-fixture-text\"}}","req-safe")
+   val event=responseFailureEvent("op",failure)
+   assertEquals("subscription_sharing_user_not_eligible",event["errorCode"])
+   assertEquals("model",event["parameter"]);assertEquals("req-safe",event["serverRequestId"])
+   assertFalse(event.toString().contains("sensitive-fixture-text"))
+   val unsafe=responseFailureEvent("op",ResourceFailure(403,"bad secret text","malicious\nparam","unsafe header value","detail"))
+   assertFalse(unsafe.containsKey("errorCode"));assertFalse(unsafe.containsKey("parameter"));assertFalse(unsafe.containsKey("serverRequestId"))
+ }
+
 }

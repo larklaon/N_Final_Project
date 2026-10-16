@@ -13,11 +13,6 @@ export type Reminder = {
 };
 export function planReminders(s: LearningSnapshot, now: number): Reminder[] {
   if (!s.settings.notificationsEnabled) return [];
-  const selected =
-    nextConcept(s, now) ??
-    s.concepts.find((c) => s.progress[c.id]) ??
-    s.concepts[0];
-  if (!selected) return [];
   const result: Reminder[] = [];
   for (let day = 0; day < 7; day++) {
     const d = new Date(now);
@@ -32,6 +27,8 @@ export function planReminders(s: LearningSnapshot, now: number): Reminder[] {
         (day === 0 && dailyCount(s, now) >= s.settings.dailyGoal)
       )
         continue;
+      const selected = nextConcept(s, at.getTime());
+      if (!selected) continue;
       const id = `teum:${s.learnerId}:${localDate(at.getTime())}:${slot}`;
       const fingerprint = JSON.stringify([
         at.getTime(),
@@ -49,6 +46,21 @@ export function planReminders(s: LearningSnapshot, now: number): Reminder[] {
     }
   }
   return result;
+}
+/** Re-evaluate delivered notifications: their scheduled concept may already be learned. */
+export function reminderDestination(
+  s: LearningSnapshot,
+  data: Record<string, unknown>,
+  now: number,
+): string | null | undefined {
+  if (
+    data.type !== "learning" ||
+    data.learnerId !== s.learnerId ||
+    typeof data.conceptId !== "string" ||
+    !s.concepts.some((c) => c.id === data.conceptId)
+  )
+    return undefined;
+  return nextConcept(s, now)?.id ?? null;
 }
 // OS mutations are serialized per repository, including destructive/profile operations.
 const queues = new WeakMap<LearningRepository, Promise<void>>();

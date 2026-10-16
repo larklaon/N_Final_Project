@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { AppState, Text, View, ActivityIndicator, Modal } from "react-native";
@@ -20,6 +21,7 @@ import {
 import {
   reconcileNotifications,
   withNotificationLock,
+  reminderDestination,
 } from "../services/notifications/scheduler";
 import { Button, Body, Title, Surface } from "../components/ui";
 import { colors } from "../theme/tokens";
@@ -53,6 +55,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     null,
   );
   const router = useRouter();
+  const notificationRun = useRef(0);
+  const reconcile = useCallback(async () => {
+    if (!repo) return;
+    const run = ++notificationRun.current;
+    try {
+      await reconcileNotifications(repo);
+      if (run === notificationRun.current) setNotificationError(null);
+    } catch {
+      if (run === notificationRun.current)
+        setNotificationError(
+          "알림 일정을 준비하지 못했어요. 다음 실행 때 다시 시도해요.",
+        );
+    }
+  }, [repo]);
   const refresh = useCallback(() => {
     if (repo) setSnapshot(repo.snapshot());
     setNow(Date.now());
@@ -91,11 +107,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
       if (repo) {
         await withNotificationLock(repo, read);
-        void reconcileNotifications(repo).catch(() =>
-          setNotificationError(
-            "알림 일정을 준비하지 못했어요. 다음 실행 때 다시 시도해요.",
-          ),
-        );
+        void reconcile();
       } else await read();
     } catch {
       setAuth({
@@ -103,7 +115,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         message: "ChatGPT 연결에는 Android Development Build가 필요해요.",
       });
     }
-  }, [repo, refresh]);
+  }, [repo, refresh, reconcile]);
   useEffect(() => {
     if (repo) void Promise.resolve().then(refreshAuth);
   }, [repo, refreshAuth]);
@@ -114,52 +126,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [auth.status, refreshAuth]);
   useEffect(() => {
     if (!repo) return;
-    const reconcile = () => {
+    const queueAndReconcile = () => {
       repo.queueNotifications();
-      void reconcileNotifications(repo)
-        .then(() => setNotificationError(null))
-        .catch(() =>
-          setNotificationError(
-            "알림 일정을 저장하지 못했어요. 앱을 다시 열면 재시도해요.",
-          ),
-        );
+      void reconcile();
     };
-    reconcile();
+    queueAndReconcile();
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         refresh();
         void refreshAuth();
-        reconcile();
+        queueAndReconcile();
       }
     });
     return () => sub.remove();
-  }, [repo, refresh, refreshAuth]);
+  }, [repo, refresh, refreshAuth, reconcile]);
   useEffect(() => {
-    if (repo)
-      void reconcileNotifications(repo).catch(() =>
-        setNotificationError(
-          "알림 일정을 준비하지 못했어요. 다음 실행 때 다시 시도해요.",
-        ),
-      );
-  }, [repo, snapshot]);
+    void Promise.resolve().then(reconcile);
+  }, [snapshot, reconcile]);
 
   useEffect(() => {
     if (!repo || !snapshot?.settings.onboarded) return;
     const handle = (response: Notifications.NotificationResponse) => {
       const d = response.notification.request.content.data ?? {};
       const id = `${response.notification.request.identifier}:${response.notification.date}:${response.actionIdentifier}`;
-      if (
-        d.type !== "learning" ||
-        d.learnerId !== repo.activeLearner ||
-        typeof d.conceptId !== "string" ||
-        !repo.snapshot().concepts.some((c) => c.id === d.conceptId) ||
-        !repo.consumeEvent(id)
-      )
-        return;
-      router.push({
-        pathname: "/learn/[conceptId]",
-        params: { conceptId: d.conceptId },
-      });
+      const conceptId = reminderDestination(repo.snapshot(), d, Date.now());
+      if (conceptId === undefined || !repo.consumeEvent(id)) return;
+      if (conceptId === null) router.push("/");
+      else
+        router.push({
+          pathname: "/learn/[conceptId]",
+          params: { conceptId },
+        });
     };
     const sub = Notifications.addNotificationResponseReceivedListener(handle);
     void Notifications.getLastNotificationResponseAsync().then((r) => {
