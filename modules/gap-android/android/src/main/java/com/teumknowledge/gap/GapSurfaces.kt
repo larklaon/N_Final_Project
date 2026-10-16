@@ -9,6 +9,10 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.util.SizeF
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
@@ -42,8 +46,8 @@ object GapSurfaces {
     return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
   }
   private fun answer(context: Context, card: GapCard, option: GapOption) =
-    action(context, ACTION_ANSWER, "answer/${Uri.encode(card.cardId)}/${Uri.encode(option.id)}") {
-      putExtra("cardId", card.cardId); putExtra("optionId", option.id)
+    action(context, ACTION_ANSWER, "answer/${Uri.encode(card.cardId)}/${Uri.encode(card.questionId)}/${Uri.encode(option.id)}") {
+      putExtra("cardId", card.cardId); putExtra("optionId", option.id); putExtra("questionId", card.questionId)
     }
   private fun next(context: Context, card: GapCard) =
     action(context, ACTION_NEXT, "next/${Uri.encode(card.cardId)}") { putExtra("cardId", card.cardId) }
@@ -84,8 +88,8 @@ object GapSurfaces {
         expanded = RemoteViews(pkg, R.layout.gap_notif_question).also { bindQuestion(context, it, card, compact = false) }
       }
       is GapView.Result -> {
-        collapsed = RemoteViews(pkg, R.layout.gap_notif_result).also { bindResult(context, it, card, view.answer, compact = true) }
-        expanded = RemoteViews(pkg, R.layout.gap_notif_result).also { bindResult(context, it, card, view.answer, compact = false) }
+        collapsed = RemoteViews(pkg, R.layout.gap_notif_result).also { bindResult(context, it, view.shown, view.answer, compact = true) }
+        expanded = RemoteViews(pkg, R.layout.gap_notif_result).also { bindResult(context, it, view.shown, view.answer, compact = false) }
       }
       else -> return
     }
@@ -137,62 +141,84 @@ object GapSurfaces {
     v.setOnClickPendingIntent(R.id.gap_next, next(context, card))
   }
 
+  /**
+   * The widget changes its question with its size: small asks the piece as O/X beside the band,
+   * the default size asks "which term is this?" in a 2x2 grid, large lists the four terms.
+   */
+  private enum class WidgetSize { SMALL, MEDIUM, LARGE }
+  private val cellIds = intArrayOf(R.id.gap_widget_cell_1, R.id.gap_widget_cell_2, R.id.gap_widget_cell_3, R.id.gap_widget_cell_4)
+  private val rowIds = intArrayOf(R.id.gap_widget_row_1, R.id.gap_widget_row_2, R.id.gap_widget_row_3, R.id.gap_widget_row_4)
+
   private fun renderWidgets(context: Context, view: GapView) {
     val wm = AppWidgetManager.getInstance(context)
     val ids = wm.getAppWidgetIds(ComponentName(context, GapWidgetProvider::class.java))
     if (ids.isEmpty()) return
-    val v = RemoteViews(context.packageName, R.layout.gap_widget)
+    val build = { size: WidgetSize -> widgetViews(context, view, size) }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      // The launcher picks the largest layout that fits, live while the user resizes.
+      wm.updateAppWidget(ids, RemoteViews(mapOf(
+        SizeF(180f, 60f) to build(WidgetSize.SMALL),
+        SizeF(180f, 250f) to build(WidgetSize.MEDIUM),
+        SizeF(180f, 380f) to build(WidgetSize.LARGE),
+      )))
+    } else for (id in ids) wm.updateAppWidget(id, build(sizeOf(wm.getAppWidgetOptions(id))))
+  }
+
+  private fun sizeOf(options: Bundle): WidgetSize {
+    val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 250)
+    return when { height < 250 -> WidgetSize.SMALL; height < 380 -> WidgetSize.MEDIUM; else -> WidgetSize.LARGE }
+  }
+
+  private fun widgetViews(context: Context, view: GapView, size: WidgetSize): RemoteViews {
+    val small = size == WidgetSize.SMALL
+    val v = RemoteViews(context.packageName, if (small) R.layout.gap_widget_small else R.layout.gap_widget)
     v.setOnClickPendingIntent(R.id.gap_widget_root, openApp(context))
-    // Accept both the original result container and the in-progress band layout.
-    // Resource lookups keep either layout buildable while its visual work is separate.
-    fun optionalId(name: String) = context.resources.getIdentifier(name, "id", context.packageName)
-    fun visible(name: String, show: Boolean) {
-      val id = optionalId(name); if (id != 0) v.setViewVisibility(id, if (show) View.VISIBLE else View.GONE)
-    }
-    val bandLayout = optionalId("gap_widget_verdict") != 0
-    visible("gap_widget_verdict", false)
-    visible("gap_widget_ox", false)
-    if (bandLayout) { visible("gap_widget_feedback", false); visible("gap_widget_next", false) }
+    // Only touch ids the chosen layout has; a missing id breaks the whole widget.
+    val answers = if (small) listOf(R.id.gap_widget_ox) else listOf(R.id.gap_widget_ox, R.id.gap_widget_grid, R.id.gap_widget_list)
+    fun showOnly(id: Int?) = answers.forEach { v.setViewVisibility(it, if (it == id) View.VISIBLE else View.GONE) }
+    val promptLines = when (size) { WidgetSize.SMALL -> 2; WidgetSize.MEDIUM -> 3; WidgetSize.LARGE -> 5 }
+    v.setInt(R.id.gap_widget_prompt, "setMaxLines", promptLines)
+    if (size == WidgetSize.LARGE) v.setTextViewTextSize(R.id.gap_widget_prompt, TypedValue.COMPLEX_UNIT_SP, 21f)
+    v.setViewVisibility(R.id.gap_widget_next, View.GONE)
+    v.setViewVisibility(R.id.gap_widget_feedback, View.GONE)
     when (view) {
       is GapView.Hidden -> {
-        v.setTextViewText(R.id.gap_widget_area, "틈지식")
+        if (!small) v.setTextViewText(R.id.gap_widget_area, "틈지식")
         v.setTextViewText(R.id.gap_widget_prompt, "앱을 한 번 열면 여기에 문제가 놓여요.")
-        v.setViewVisibility(R.id.gap_widget_options, View.GONE)
-        visible("gap_widget_result", false)
+        showOnly(null)
       }
       is GapView.Question -> {
-        v.setTextViewText(R.id.gap_widget_area, view.card.area)
-        v.setTextViewText(R.id.gap_widget_prompt, view.card.prompt)
-        v.setViewVisibility(R.id.gap_widget_options, if (bandLayout && view.card.isOx) View.GONE else View.VISIBLE)
-        visible("gap_widget_result", false)
-        if (bandLayout && view.card.isOx) {
-          visible("gap_widget_ox", true)
-          listOf("gap_widget_o", "gap_widget_x").forEachIndexed { i, name ->
-            val id = optionalId(name); val option = view.card.options.getOrNull(i)
-            if (id != 0 && option != null) {
-              v.setTextViewText(id, shortLabel(view.card, option))
-              v.setOnClickPendingIntent(id, answer(context, view.card, option))
-            }
-          }
+        val shape = view.card.variant(if (small) "ox" else "term")
+        if (!small) v.setTextViewText(R.id.gap_widget_area, view.card.area)
+        v.setTextViewText(R.id.gap_widget_prompt, shape.prompt)
+        val buttons = when {
+          shape.isOx -> { showOnly(R.id.gap_widget_ox); intArrayOf(R.id.gap_widget_o, R.id.gap_widget_x) }
+          small -> { showOnly(null); intArrayOf() } // No O/X variant: tapping opens the app.
+          size == WidgetSize.MEDIUM && shape.options.size == 4 -> { showOnly(R.id.gap_widget_grid); cellIds }
+          else -> { showOnly(R.id.gap_widget_list); rowIds }
         }
-        val widgetIds = intArrayOf(R.id.gap_widget_option_1, R.id.gap_widget_option_2, R.id.gap_widget_option_3)
-        widgetIds.forEachIndexed { i, id ->
-          val option = view.card.options.getOrNull(i)
+        buttons.forEachIndexed { i, id ->
+          val option = shape.options.getOrNull(i)
           v.setViewVisibility(id, if (option != null) View.VISIBLE else View.GONE)
-          if (option != null) { v.setTextViewText(id, option.text); v.setOnClickPendingIntent(id, answer(context, view.card, option)) }
+          if (option != null) {
+            if (!shape.isOx) v.setTextViewText(id, option.text)
+            v.setContentDescription(id, option.text)
+            v.setOnClickPendingIntent(id, answer(context, shape, option))
+          }
         }
       }
       is GapView.Result -> {
-        v.setTextViewText(R.id.gap_widget_area, view.card.area)
-        v.setTextViewText(R.id.gap_widget_prompt, resultTitle(view.card, view.answer))
-        v.setTextViewText(R.id.gap_widget_feedback, view.card.feedback)
-        v.setViewVisibility(R.id.gap_widget_options, View.GONE)
-        visible("gap_widget_result", true)
-        if (bandLayout) { visible("gap_widget_feedback", true); visible("gap_widget_next", true) }
+        if (!small) v.setTextViewText(R.id.gap_widget_area, view.card.area)
+        v.setTextViewText(R.id.gap_widget_prompt, resultTitle(view.shown, view.answer))
+        v.setTextViewText(R.id.gap_widget_feedback, view.shown.feedback)
+        v.setInt(R.id.gap_widget_feedback, "setMaxLines", when (size) { WidgetSize.SMALL -> 1; WidgetSize.MEDIUM -> 4; WidgetSize.LARGE -> 8 })
+        v.setViewVisibility(R.id.gap_widget_feedback, View.VISIBLE)
+        showOnly(null)
+        v.setViewVisibility(R.id.gap_widget_next, View.VISIBLE)
         v.setOnClickPendingIntent(R.id.gap_widget_next, next(context, view.card))
       }
     }
-    wm.updateAppWidget(ids, v)
+    return v
   }
 
   /** Inexact on purpose: rotation every few minutes late costs nothing and saves battery. */

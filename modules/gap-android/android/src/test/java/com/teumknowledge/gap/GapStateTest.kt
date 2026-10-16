@@ -99,4 +99,26 @@ class GapStateTest {
     assertTrue(restored.view(true, 9 * 60) is GapView.Result)
     assertEquals(1, restored.events().length())
   }
+
+  @Test fun widgetVariantAnswerRecordsItsOwnQuestionAndShowsOnBothSurfaces() {
+    val term = JSONObject().put("questionId", "q0~term").put("type", "choice").put("prompt", "이것은 …")
+      .put("options", JSONArray().apply { listOf("a", "b", "c", "d").forEach { put(JSONObject().put("id", it).put("text", "용어$it")) } })
+      .put("correctOptionId", "c").put("feedback", "용어 해설")
+    val deck = JSONArray().put(card(0).put("variants", JSONObject().put("term", term))).put(card(1))
+    val s = GapState().apply { configure(config(0).put("deck", deck), now) }
+    val c = s.current()!!
+    assertEquals(4, c.variant("term").options.size)
+    assertEquals("c0", c.variant("term").cardId)
+    assertSame(c, c.variant("ox"))
+    // An option id from the term question is not valid for the O/X card, and vice versa.
+    assertNull(s.answer("c0", "c", now, newId))
+    assertEquals(GapAnswer("a", false), s.answer("c0", "a", now, newId, "q0~term"))
+    assertEquals("q0~term", s.events().getJSONObject(0).getString("questionId"))
+    val v = s.view(true, 9 * 60) as GapView.Result
+    assertEquals("q0~term", v.shown.questionId)
+    assertEquals("정답은 용어c", GapSurfaces.resultTitle(v.shown, v.answer))
+    // Survives a round trip through the stored JSON.
+    val again = GapState(JSONObject(s.root.toString())).view(false, 9 * 60) as GapView.Result
+    assertEquals("용어 해설", again.shown.feedback)
+  }
 }

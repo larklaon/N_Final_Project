@@ -1,26 +1,51 @@
+<!-- Medium and large widget: label, the mint band (question or result), then answers. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/gap_widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
-  android:background="@drawable/gap_widget_bg" android:padding="16dp">
+  android:background="@drawable/gap_widget_card_bg" android:paddingTop="16dp" android:paddingBottom="16dp">
   <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
     android:layout_gravity="center_vertical" android:orientation="vertical">
     <TextView android:id="@+id/gap_widget_area" android:layout_width="wrap_content" android:layout_height="wrap_content"
-      android:textColor="#FF3F5A4C" android:textSize="12sp" android:letterSpacing="0.1" android:text="틈지식" />
-    <TextView android:id="@+id/gap_widget_prompt" android:layout_width="match_parent" android:layout_height="wrap_content"
-      android:layout_marginTop="4dp" android:maxLines="3" android:ellipsize="end" android:fontFamily="serif"
-      android:textStyle="bold" android:textColor="#FF121513" android:textSize="16sp" android:lineSpacingExtra="2sp" />
-    <LinearLayout android:id="@+id/gap_widget_options" android:layout_width="match_parent" android:layout_height="wrap_content"
-      android:layout_marginTop="10dp" android:orientation="vertical" android:visibility="gone">
-      <Button android:id="@+id/gap_widget_option_1" style="@style/GapWidgetOption" />
-      <Button android:id="@+id/gap_widget_option_2" style="@style/GapWidgetOption" android:layout_marginTop="6dp" />
-      <Button android:id="@+id/gap_widget_option_3" style="@style/GapWidgetOption" android:layout_marginTop="6dp" />
-    </LinearLayout>
-    <LinearLayout android:id="@+id/gap_widget_result" android:layout_width="match_parent" android:layout_height="wrap_content"
-      android:layout_marginTop="6dp" android:orientation="vertical" android:visibility="gone">
+      android:layout_marginStart="18dp" android:textColor="#FF7E877F" android:textSize="12sp" android:letterSpacing="0.12" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
+      android:background="@drawable/gap_band" android:orientation="vertical"
+      android:paddingStart="18dp" android:paddingEnd="18dp" android:paddingTop="18dp" android:paddingBottom="18dp">
+      <TextView android:id="@+id/gap_widget_prompt" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:maxLines="3" android:ellipsize="end" android:fontFamily="serif" android:textStyle="bold"
+        android:textColor="#FF121513" android:textSize="17sp" android:lineSpacingExtra="3sp" />
       <TextView android:id="@+id/gap_widget_feedback" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:maxLines="3" android:ellipsize="end" android:textColor="#FF263A30" android:textSize="14sp" />
-      <Button android:id="@+id/gap_widget_next" android:layout_width="match_parent" android:layout_height="44dp"
-        android:layout_marginTop="10dp" android:background="@drawable/gap_widget_next_bg" android:text="@string/gap_next"
-        android:textAllCaps="false" android:textColor="#FFE8F0EA" android:textSize="15sp" />
+        android:layout_marginTop="6dp" android:maxLines="3" android:ellipsize="end" android:textColor="#FF263A30"
+        android:textSize="13sp" android:lineSpacingExtra="2sp" android:visibility="gone" />
     </LinearLayout>
+    <LinearLayout android:id="@+id/gap_widget_ox" android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:layout_marginTop="12dp" android:layout_marginStart="16dp" android:layout_marginEnd="16dp"
+      android:orientation="horizontal" android:visibility="gone">
+      <Button android:id="@+id/gap_widget_o" style="@style/GapWidgetOx" android:text="O" />
+      <Button android:id="@+id/gap_widget_x" style="@style/GapWidgetOx" android:layout_marginStart="10dp" android:text="X" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/gap_widget_grid" android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:layout_marginTop="12dp" android:layout_marginStart="16dp" android:layout_marginEnd="16dp"
+      android:orientation="vertical" android:visibility="gone">
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+        <Button android:id="@+id/gap_widget_cell_1" style="@style/GapWidgetCell" />
+        <Button android:id="@+id/gap_widget_cell_2" style="@style/GapWidgetCell" android:layout_marginStart="8dp" />
+      </LinearLayout>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+        <Button android:id="@+id/gap_widget_cell_3" style="@style/GapWidgetCell" />
+        <Button android:id="@+id/gap_widget_cell_4" style="@style/GapWidgetCell" android:layout_marginStart="8dp" />
+      </LinearLayout>
+    </LinearLayout>
+    <LinearLayout android:id="@+id/gap_widget_list" android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:layout_marginTop="4dp" android:layout_marginStart="16dp" android:layout_marginEnd="16dp"
+      android:orientation="vertical" android:visibility="gone">
+      <Button android:id="@+id/gap_widget_row_1" style="@style/GapWidgetRow" />
+      <Button android:id="@+id/gap_widget_row_2" style="@style/GapWidgetRow" />
+      <Button android:id="@+id/gap_widget_row_3" style="@style/GapWidgetRow" />
+      <Button android:id="@+id/gap_widget_row_4" style="@style/GapWidgetRow" />
+    </LinearLayout>
+    <Button android:id="@+id/gap_widget_next" android:layout_width="match_parent" android:layout_height="48dp"
+      android:layout_marginTop="12dp" android:layout_marginStart="16dp" android:layout_marginEnd="16dp"
+      android:background="@drawable/gap_widget_next_bg" android:text="@string/gap_next" android:textAllCaps="false"
+      android:textColor="#FF121513" android:textSize="15sp" android:textStyle="bold" android:visibility="gone" />
   </LinearLayout>
 </FrameLayout>

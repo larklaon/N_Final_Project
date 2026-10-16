@@ -1,0 +1,5 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:width="100dp" android:height="100dp" android:viewportWidth="100" android:viewportHeight="100">
+  <!-- The gap: edges rise to the right, as in the app. Stretched to the band's size. -->
+  <path android:fillColor="#FFE8F0EA" android:pathData="M0,7 L100,0 L100,93 L0,100 Z" />
+</vector>

@@ -15,9 +15,16 @@ data class GapCard(
   val options: List<GapOption>,
   val correctOptionId: String,
   val feedback: String,
+  /** Same piece in other shapes ("ox", "term"); the widget picks one by its size. */
+  val variants: Map<String, GapCard> = emptyMap(),
 ) {
   val isOx get() = type == "ox"
   fun option(id: String) = options.firstOrNull { it.id == id }
+  fun variant(key: String) = variants[key] ?: this
+  /** The card itself or the variant with this question id. */
+  fun shape(questionId: String?) =
+    if (questionId.isNullOrEmpty() || questionId == this.questionId) this
+    else variants.values.firstOrNull { it.questionId == questionId }
 }
 data class GapAnswer(val selected: String, val correct: Boolean)
 
@@ -25,7 +32,8 @@ data class GapAnswer(val selected: String, val correct: Boolean)
 sealed class GapView {
   object Hidden : GapView()
   data class Question(val card: GapCard) : GapView()
-  data class Result(val card: GapCard, val answer: GapAnswer) : GapView()
+  /** [shown] is the shape that was answered: the card, or a widget variant of it. */
+  data class Result(val card: GapCard, val answer: GapAnswer, val shown: GapCard = card) : GapView()
 }
 
 /**
@@ -60,7 +68,8 @@ class GapState(val root: JSONObject = JSONObject()) {
     val card = current() ?: return GapView.Hidden
     if (forNotification && (!enabled || !inWindow(minuteOfDay) || root.optString("dismissed") == card.cardId))
       return GapView.Hidden
-    return answer?.let { GapView.Result(card, it) } ?: GapView.Question(card)
+    val answered = root.optJSONObject("answer")?.optString("questionId")
+    return answer?.let { GapView.Result(card, it, card.shape(answered) ?: card) } ?: GapView.Question(card)
   }
 
   /** Replace config from JS. Pending events survive; display restarts at the new deck's first card. */
@@ -74,17 +83,22 @@ class GapState(val root: JSONObject = JSONObject()) {
     root.put("shownAt", now)
   }
 
-  /** Record one answer for the showing card. Repeated taps and stale buttons are ignored. */
-  fun answer(cardId: String, optionId: String, now: Long, newId: () -> String): GapAnswer? {
+  /**
+   * Record one answer for the showing card, in whichever shape it was asked ([questionId]
+   * names a widget variant). Repeated taps and stale buttons are ignored.
+   */
+  fun answer(cardId: String, optionId: String, now: Long, newId: () -> String, questionId: String? = null): GapAnswer? {
     val card = current() ?: return null
     if (card.cardId != cardId || answer != null) return null
-    card.option(optionId) ?: return null
-    val result = GapAnswer(optionId, optionId == card.correctOptionId)
-    root.put("answer", JSONObject().put("selected", optionId).put("correct", result.correct))
+    val shape = card.shape(questionId) ?: return null
+    shape.option(optionId) ?: return null
+    val result = GapAnswer(optionId, optionId == shape.correctOptionId)
+    root.put("answer", JSONObject().put("selected", optionId).put("correct", result.correct).put("questionId", shape.questionId))
+    // The card is done for this pass whichever shape was answered.
     if (result.correct) root.put("correctIds", correctIds().put(card.questionId))
     events().put(
       JSONObject().put("id", newId()).put("learnerId", card.learnerId)
-        .put("questionId", card.questionId).put("selectedOptionId", optionId).put("answeredAt", now),
+        .put("questionId", shape.questionId).put("selectedOptionId", optionId).put("answeredAt", now),
     )
     return result
   }
@@ -128,12 +142,21 @@ class GapState(val root: JSONObject = JSONObject()) {
 
   companion object {
     fun parseCard(o: JSONObject): GapCard {
+      val card = parseShape(o, o)
+      val v = o.optJSONObject("variants") ?: return card
+      val variants = v.keys().asSequence().mapNotNull { key ->
+        v.optJSONObject(key)?.let { x -> runCatching { key to parseShape(x, o) }.getOrNull() }
+      }.toMap()
+      return card.copy(variants = variants)
+    }
+    /** A variant shares the card's identity and piece; only the question differs. */
+    private fun parseShape(o: JSONObject, card: JSONObject): GapCard {
       val opts = o.getJSONArray("options")
       val options = (0 until opts.length()).map { opts.getJSONObject(it).let { x -> GapOption(x.getString("id"), x.getString("text")) } }
       require(options.size in 2..4)
       return GapCard(
-        o.getString("cardId"), o.getString("learnerId"), o.getString("questionId"), o.optString("conceptTitle"),
-        o.optString("area"), o.optString("type", "choice"), o.getString("prompt"), options,
+        card.getString("cardId"), card.getString("learnerId"), o.getString("questionId"), card.optString("conceptTitle"),
+        card.optString("area"), o.optString("type", "choice"), o.getString("prompt"), options,
         o.getString("correctOptionId"), o.optString("feedback"),
       )
     }

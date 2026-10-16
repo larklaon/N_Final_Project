@@ -1,4 +1,5 @@
 import { DAY } from "./review";
+import { shuffled, termQuestion } from "./term";
 import type { Concept, GapProgress, LearningSnapshot, Quiz } from "./types";
 
 const gapIntervals = [1, 3, 7];
@@ -36,6 +37,16 @@ export function requeueGap(
   };
 }
 
+/** One question a surface can show for the card's piece. */
+export type GapVariant = {
+  questionId: string;
+  type: Quiz["type"];
+  prompt: string;
+  options: Quiz["options"];
+  correctOptionId: string;
+  feedback: string;
+};
+
 export type GapCard = {
   cardId: string;
   learnerId: string;
@@ -48,7 +59,21 @@ export type GapCard = {
   options: Quiz["options"];
   correctOptionId: string;
   feedback: string;
+  /** Same piece, other shapes: the widget picks one by its size (small: ox, larger: term). */
+  variants: { ox?: GapVariant; term?: GapVariant };
 };
+
+function variant(q: Quiz, concept: Concept, seed: string): GapVariant {
+  return {
+    questionId: q.id,
+    type: q.type,
+    prompt: q.prompt,
+    // Authored choices list the answer first; shuffle so the first button is not always right.
+    options: q.type === "ox" ? q.options : shuffled(q.options, seed, (o) => o.id),
+    correctOptionId: q.correctOptionId,
+    feedback: q.explanation.length <= 120 ? q.explanation : concept.oneLiner,
+  };
+}
 
 function pickQuestion(
   concept: Concept,
@@ -88,18 +113,22 @@ export function buildDeck(
     if (cards.length >= size) break;
     const q = pickQuestion(concept, gp[concept.id], byConcept);
     if (!q) continue;
+    const cardId = `${s.learnerId}:${s.memoryRevision}:${cards.length}`;
+    const { questionId, ...main } = variant(q, concept, cardId);
+    const ox = (byConcept.get(concept.id) ?? []).find((x) => x.type === "ox");
+    const term = termQuestion(concept, s.concepts);
     cards.push({
-      cardId: `${s.learnerId}:${s.memoryRevision}:${cards.length}`,
+      cardId,
       learnerId: s.learnerId,
-      questionId: q.id,
+      questionId,
       conceptId: concept.id,
       conceptTitle: concept.title,
       area: concept.area,
-      type: q.type,
-      prompt: q.prompt,
-      options: q.options,
-      correctOptionId: q.correctOptionId,
-      feedback: q.explanation.length <= 120 ? q.explanation : concept.oneLiner,
+      ...main,
+      variants: {
+        ox: ox && variant(ox, concept, cardId),
+        term: term ? variant(term, concept, cardId) : undefined,
+      },
     });
   }
   return cards;

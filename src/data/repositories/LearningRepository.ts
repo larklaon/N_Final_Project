@@ -2,6 +2,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 import { defaultPackId, packOf, packs } from "../content/packs";
 import { chatSchema, gapSchema, schema, v3Schema } from "../db/schema";
 import { advanceGap, requeueGap } from "../../domain/gap";
+import { termQuestion } from "../../domain/term";
 import type { Plan } from "../../domain/plan";
 import {
   applyAnswer,
@@ -316,6 +317,14 @@ export class LearningRepository {
       .map((r) => JSON.parse(r.data) as Quiz);
     return this.allQuestions;
   }
+  /** Authored questions plus the widget's generated term questions, by id. */
+  private questionIndex() {
+    const concepts = this.db
+      .getAllSync<{ data: string }>("SELECT data FROM concepts")
+      .map((r) => JSON.parse(r.data) as Concept);
+    const terms = concepts.flatMap((c) => termQuestion(c, concepts) ?? []);
+    return new Map([...this.questions(), ...terms].map((q) => [q.id, q]));
+  }
   private replayKnowledge() {
     const answers = [
       ...this.db.getAllSync<{ learnerId: string; quizId: string; correct: number; answeredAt: number }>(
@@ -325,7 +334,7 @@ export class LearningRepository {
         "SELECT learnerId,questionId AS quizId,correct,answeredAt FROM gap_events",
       ),
     ].sort((a, b) => a.answeredAt - b.answeredAt);
-    const byId = new Map(this.questions().map((q) => [q.id, q]));
+    const byId = this.questionIndex();
     for (const a of answers) {
       const q = byId.get(a.quizId);
       if (q) this.applyKnowledge(a.learnerId, q, a.correct === 1, a.answeredAt);
@@ -371,7 +380,7 @@ export class LearningRepository {
    */
   ingestGapEvents(events: GapEvent[]): string[] {
     const handled: string[] = [];
-    const byId = new Map(this.questions().map((q) => [q.id, q]));
+    const byId = this.questionIndex();
     this.db.withTransactionSync(() => {
       const touched = new Set<string>();
       for (const e of [...events].sort((a, b) => a.answeredAt - b.answeredAt)) {

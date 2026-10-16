@@ -2,6 +2,7 @@ import { database } from "../../data/repositories/__tests__/database";
 import { LearningRepository } from "../../data/repositories/LearningRepository";
 import { advanceGap, buildDeck, withinWindow } from "../gap";
 import { DAY } from "../review";
+import { cue, termId } from "../term";
 
 const now = Date.UTC(2026, 9, 15, 12);
 function setup() {
@@ -52,6 +53,45 @@ test("feedback stays short enough for a notification line", () => {
   const repo = setup();
   for (const card of buildDeck(repo.snapshot(), repo.questions(), now, 60))
     expect(card.feedback.length).toBeLessThanOrEqual(120);
+});
+
+test("every card carries an O/X and a four-way term question for the widget", () => {
+  const repo = setup();
+  const s = repo.snapshot();
+  const deck = buildDeck(s, repo.questions(), now, 60);
+  for (const card of deck) {
+    const { ox, term } = card.variants;
+    expect(ox?.type).toBe("ox");
+    expect(term?.options).toHaveLength(4);
+    expect(new Set(term!.options.map((o) => o.id)).size).toBe(4);
+    expect(term!.correctOptionId).toBe(card.conceptId);
+    // Distractors come from the same area.
+    const area = (id: string) => s.concepts.find((c) => c.id === id)!.area;
+    expect(term!.options.every((o) => area(o.id) === card.area)).toBe(true);
+    // The term itself never shows in its own prompt.
+    expect(term!.prompt).not.toContain(card.conceptTitle);
+  }
+  // The answer does not sit in the same slot every time.
+  expect(deck.some((c) => c.variants.term!.options[0].id !== c.conceptId)).toBe(true);
+});
+
+test("a widget term answer is ingested and moves that piece", () => {
+  const repo = setup();
+  const learner = repo.activeLearner;
+  repo.ingestGapEvents([
+    { id: "t1", learnerId: learner, questionId: termId("net-tcp"), selectedOptionId: "net-tcp", answeredAt: now },
+    { id: "t2", learnerId: learner, questionId: termId("net-udp"), selectedOptionId: "nope", answeredAt: now },
+  ]);
+  const s = repo.snapshot();
+  expect(s.gapProgress["net-tcp"]).toMatchObject({ seen: 1, correct: 1 });
+  expect(s.gapProgress["net-udp"]).toBeUndefined();
+  expect(s.knowledge["net-tcp"].r).toBeGreaterThan(0);
+});
+
+test("term cues hide the term behind 이것", () => {
+  const repo = setup();
+  const tcp = repo.snapshot().concepts.find((c) => c.id === "net-tcp")!;
+  expect(cue(tcp)).toBe("이것은 신뢰할 수 있는 순서 있는 바이트 스트림을 제공하는 전송 프로토콜이에요.");
 });
 
 test("card window is half-open", () => {

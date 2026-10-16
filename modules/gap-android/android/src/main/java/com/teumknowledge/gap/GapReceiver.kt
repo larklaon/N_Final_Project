@@ -15,7 +15,8 @@ class GapReceiver : BroadcastReceiver() {
     when (intent.action) {
       GapSurfaces.ACTION_ANSWER -> {
         val option = intent.getStringExtra("optionId") ?: return
-        GapStore.update(context) { it.answer(cardId ?: return@update, option, now) { UUID.randomUUID().toString() } }
+        val question = intent.getStringExtra("questionId")
+        GapStore.update(context) { it.answer(cardId ?: return@update, option, now, { UUID.randomUUID().toString() }, question) }
       }
       GapSurfaces.ACTION_NEXT -> GapStore.update(context) { if (it.current()?.cardId == cardId) it.advance(now) }
       GapSurfaces.ACTION_DISMISS -> { GapStore.update(context) { it.dismiss(cardId ?: return@update) }; return }
@@ -38,4 +39,7 @@ class GapBootReceiver : BroadcastReceiver() {
 
 class GapWidgetProvider : AppWidgetProvider() {
   override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) = GapSurfaces.render(context)
+  // Before Android 12 the layout is chosen by size here; from 12 the launcher switches by itself.
+  override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: android.os.Bundle) =
+    GapSurfaces.render(context)
 }
