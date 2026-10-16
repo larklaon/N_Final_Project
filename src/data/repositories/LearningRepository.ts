@@ -2,6 +2,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 import { defaultPackId, packOf, packs } from "../content/packs";
 import { chatSchema, gapSchema, schema, v3Schema } from "../db/schema";
 import { advanceGap, requeueGap } from "../../domain/gap";
+import type { Plan } from "../../domain/plan";
 import {
   applyAnswer,
   deltaFor,
@@ -261,6 +262,31 @@ export class LearningRepository {
     );
     if (!row) throw Error("문제를 찾지 못했어요.");
     return JSON.parse(row.data);
+  }
+  plan(learnerId = this.activeLearner): Plan | null {
+    const subject = packOf(this.snapshot(learnerId).settings.subjectId).id;
+    const row = this.db.getFirstSync<{ data: string }>(
+      "SELECT data FROM plans WHERE learnerId=? AND subjectId=?",
+      learnerId,
+      subject,
+    );
+    return row ? (JSON.parse(row.data) as Plan) : null;
+  }
+  /** Ignored when the learner or subject changed while the coach was answering. */
+  savePlan(learner: string, subjectId: string, plan: Plan) {
+    if (learner !== this.activeLearner) return false;
+    if (packOf(this.snapshot().settings.subjectId).id !== subjectId) return false;
+    this.db.withTransactionSync(() => {
+      this.db.runSync(
+        "INSERT INTO plans VALUES (?,?,?,?) ON CONFLICT(learnerId,subjectId) DO UPDATE SET createdAt=excluded.createdAt,data=excluded.data",
+        learner,
+        subjectId,
+        plan.createdAt,
+        JSON.stringify(plan),
+      );
+      this.touch(learner);
+    });
+    return true;
   }
   installedSubjects(): string[] {
     return this.db

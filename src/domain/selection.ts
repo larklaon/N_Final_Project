@@ -1,5 +1,6 @@
 import { localDate } from "./review";
 import type { LearningSnapshot } from "./types";
+import { pickConcept, type Plan } from "./plan";
 export function dailyCount(s: LearningSnapshot, now: number) {
   return new Set(
     s.attempts
@@ -56,4 +57,32 @@ export function fittedToday(s: LearningSnapshot, now: number) {
   return ids
     .map((id) => s.concepts.find((c) => c.id === id))
     .filter((c) => !!c);
+}
+/** Every concept that can be opened now (prerequisites met), in curriculum order. */
+export function freshConcepts(s: LearningSnapshot) {
+  return s.concepts.filter(
+    (c) => !s.progress[c.id] && c.prerequisiteIds.every((id) => !!s.progress[id]),
+  );
+}
+/**
+ * V3 selection: the coach's plan (or a stable random pick without ChatGPT) chooses among
+ * concepts that can be graded now. "조금 더 풀기" ignores the daily goal and falls back to practice.
+ */
+export function planConcept(
+  s: LearningSnapshot,
+  now: number,
+  plan: Plan | null,
+  extra: boolean,
+) {
+  if (!extra && dailyCount(s, now) >= s.settings.dailyGoal) return null;
+  const picked = pickConcept(s, now, plan, {
+    due: dueConcepts(s, now),
+    fresh: freshConcepts(s),
+  });
+  if (picked || !extra) return picked;
+  return (
+    s.concepts
+      .filter((c) => s.progress[c.id])
+      .sort((a, b) => s.progress[a.id].dueAt - s.progress[b.id].dueAt)[0] ?? null
+  );
 }
