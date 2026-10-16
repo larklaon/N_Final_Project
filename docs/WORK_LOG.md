@@ -1,5 +1,14 @@
 # 개발 기록
 
+## 2026-10-16 — DIR.C1 — 제품 방향 초안·UI 점검·FIX.C3 검토 메모
+
+- 상태: 문서만 추가. 앱 코드·PRODUCT.md·DESIGN.md는 바꾸지 않았다.
+- 추가: [NEXT_DIRECTION](NEXT_DIRECTION.md) — 틈새 층(잠금 화면 상주 카드·홈 위젯)과 앱 층(심화 학습)의 두 층 구조, 틈새 표면 조사, 표면별 시각 정체성, 기존 문서와의 충돌 목록. 앱 시각 방향은 [디자인 캔버스](https://claude.ai/artifact/QB6oXbF15ekWToBdQoffXx) D안(틈 + 조각)으로 잡았다.
+- 추가: [UI_AUDIT](UI_AUDIT.md) — 현재 화면의 기능 결함 메모(퀴즈 결과 표시, 행동 위계, 시각 표기 등). 새 방향 적용 때 함께 처리한다.
+- 추가: [REVIEW_FIX_C3_NOTES](REVIEW_FIX_C3_NOTES.md) — FIX.C3 검토. 오래된 인증 intent가 `startForeground()` 없이 서비스를 멈춰 강제 종료될 수 있는 위험 1건(미검증, 미수정).
+- 검증: FIX.C3 기준 `npm run check`(Jest 40개)·Kotlin 34개 재실행 통과.
+- 다음: 위험 1건 수정 여부 결정, 두 층 구조와 D안을 PRODUCT·DESIGN·구현 계획에 반영.
+
 ## 2026-10-16 — FIX.C3 — 재검수 결함 수정
 
 - 상태: FIX.C2 독립 재검수에서 결함을 재현했고, 사용자의 즉시 수정 지시에 따라 구현·회귀 검증 완료. 수정 후 별도의 독립 재검수는 수행하지 않았다.
