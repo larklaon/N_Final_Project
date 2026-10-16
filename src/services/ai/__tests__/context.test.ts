@@ -15,6 +15,7 @@ const s: LearningSnapshot = {
       oneLiner: "정의",
       explanation: "설명",
       example: "예시",
+      deep: "심화",
       prerequisiteIds: [],
       sourceRefs: [],
       contentVersion: 1,

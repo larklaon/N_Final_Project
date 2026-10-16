@@ -40,6 +40,7 @@ beforeEach(() => {
     ackEvents: async (ids) => {
       acked.push(...ids);
     },
+    current: async () => null,
     canPinWidget: async () => true,
     pinWidget: async () => true,
   });

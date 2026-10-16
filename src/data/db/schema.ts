@@ -26,3 +26,10 @@ CREATE TABLE IF NOT EXISTS gap_events (id TEXT PRIMARY KEY, learnerId TEXT NOT N
 DROP TABLE IF EXISTS scheduled_notifications;
 PRAGMA user_version=3;
 `;
+
+/** V4: per-concept conversations with the AI, kept until the learner resets. */
+export const chatSchema = `
+CREATE TABLE IF NOT EXISTS chat_messages (id TEXT PRIMARY KEY, learnerId TEXT NOT NULL REFERENCES learners(id) ON DELETE CASCADE, conceptId TEXT NOT NULL REFERENCES concepts(id), role TEXT NOT NULL CHECK(role IN ('user','assistant')), text TEXT NOT NULL, quote TEXT, createdAt INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS chat_by_concept ON chat_messages(learnerId,conceptId,createdAt);
+PRAGMA user_version=4;
+`;

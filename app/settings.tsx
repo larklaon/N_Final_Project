@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Linking, View } from "react-native";
+import { Alert, Linking, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
 import {
@@ -15,10 +15,66 @@ import {
 } from "../src/components/ui";
 import { useApp } from "../src/platform/AppProvider";
 import { getSiwc } from "../modules/siwc-android";
-import { getGap } from "../modules/gap-android";
+import { getGap, type GapPreview } from "../modules/gap-android";
 import { enableGap, mutateLearningWithGap } from "../src/services/gap/sync";
 import { useProfileModels } from "../src/services/ai/useProfileModels";
 import { dailyGoals, gapIntervals } from "../src/data/repositories/LearningRepository";
+import { colors, fonts, type } from "../src/theme/tokens";
+
+/** A system-style mock of the card that is on the lock screen right now. */
+function CardPreview({ card, hours }: { card: GapPreview; hours: string }) {
+  return (
+    <View style={p.wrap} accessible accessibilityLabel={`잠금 화면 카드 미리보기: ${card.prompt}`}>
+      <View style={p.card}>
+        <View style={p.head}>
+          <View style={p.icon}>
+            <View style={p.slit} />
+          </View>
+          <Text style={p.meta}>틈지식 · {card.area}</Text>
+        </View>
+        <View style={p.row}>
+          <Text style={p.prompt} numberOfLines={2}>
+            {card.prompt}
+          </Text>
+          {card.type === "ox" &&
+            card.options.map((o) => (
+              <View key={o.id} style={p.ox}>
+                <Text style={p.oxText}>{o.id.toUpperCase()}</Text>
+              </View>
+            ))}
+        </View>
+      </View>
+      <Text style={p.caption}>
+        {card.onLockScreen
+          ? "지금 잠금 화면에 이렇게 놓여 있어요. 화면을 껐다 켜면 보여요."
+          : `지금은 숨겨져 있어요. ${hours} 사이에 다시 놓여요.`}
+      </Text>
+    </View>
+  );
+}
+const p = StyleSheet.create({
+  wrap: { gap: 8, paddingVertical: 12 },
+  card: {
+    backgroundColor: "#F8FAF8",
+    borderRadius: 22,
+    padding: 16,
+    gap: 10,
+    shadowColor: "#121513",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  head: { flexDirection: "row", alignItems: "center", gap: 8 },
+  icon: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.bandLabel, alignItems: "center", justifyContent: "center" },
+  slit: { width: 14, height: 5, backgroundColor: "#FFFFFF", transform: [{ skewY: "-12deg" }] },
+  meta: { ...type.small, fontSize: 13, color: colors.bandText2 },
+  row: { flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 32 },
+  prompt: { flex: 1, fontFamily: fonts.semibold, fontSize: 15, lineHeight: 21, color: colors.ink },
+  ox: { width: 40, height: 36, borderRadius: 8, borderWidth: 1, borderColor: "rgba(18,21,19,0.25)", alignItems: "center", justifyContent: "center" },
+  oxText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
+  caption: { ...type.small, fontSize: 13, color: colors.bandText2 },
+});
 
 const labels = {
   disconnected: "연결 안 됨",
@@ -41,6 +97,8 @@ export default function Settings() {
   const [busy, setBusy] = useState(false);
   const [permission, setPermission] = useState<boolean | null>(null);
   const [canPin, setCanPin] = useState(false);
+  const [preview, setPreview] = useState<GapPreview | null>(null);
+  const [notice, setNotice] = useState("");
   const {
     models,
     error: modelError,
@@ -54,6 +112,15 @@ export default function Settings() {
       .catch(() => setPermission(null));
     void getGap()?.canPinWidget().then(setCanPin).catch(() => setCanPin(false));
   }, [settings.gapEnabled]);
+  const revision = snapshot.memoryRevision;
+  useEffect(() => {
+    if (!settings.gapEnabled) return;
+    // The native card follows a sync that may still be running; read it a moment later.
+    const t = setTimeout(() => {
+      void getGap()?.current().then(setPreview).catch(() => setPreview(null));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [settings.gapEnabled, settings.gapStart, settings.gapEnd, revision, notice]);
 
   async function run(action: () => void | Promise<void>) {
     setBusy(true);
@@ -159,13 +226,20 @@ export default function Settings() {
               disabled={busy}
               onValueChange={(on) =>
                 void run(async () => {
-                  if (on) await enableGap(repo);
-                  else repo.updateSettings({ gapEnabled: false });
+                  setNotice("");
+                  if (on) {
+                    await enableGap(repo);
+                    setNotice("잠금 화면에 카드를 놓았어요.");
+                  } else repo.updateSettings({ gapEnabled: false });
                 })
               }
             />
           }
         />
+        {settings.gapEnabled && !!notice && <Message text={notice} />}
+        {settings.gapEnabled && permission !== false && preview && (
+          <CardPreview card={preview} hours={`${settings.gapStart}–${settings.gapEnd}`} />
+        )}
         {settings.gapEnabled && permission === false && (
           <Row
             label="알림 권한이 꺼져 있어요"

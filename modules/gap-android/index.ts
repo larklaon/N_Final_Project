@@ -11,8 +11,17 @@ export type GapConfig = {
   end: string;
   deck: GapCard[];
 };
+export type GapPreview = {
+  prompt: string;
+  area: string;
+  type: "ox" | "choice";
+  options: { id: string; text: string }[];
+  /** False outside the card hours, after a swipe-away, or while the toggle is off. */
+  onLockScreen: boolean;
+};
 type Native = {
   configure(config: string): Promise<void>;
+  current(): Promise<string>;
   readEvents(): Promise<string>;
   ackEvents(ids: string[]): Promise<void>;
   canPinWidget(): Promise<boolean>;
@@ -20,6 +29,7 @@ type Native = {
 };
 export interface GapGateway {
   configure(config: GapConfig): Promise<void>;
+  current(): Promise<GapPreview | null>;
   readEvents(): Promise<GapEvent[]>;
   ackEvents(ids: string[]): Promise<void>;
   canPinWidget(): Promise<boolean>;
@@ -31,6 +41,7 @@ export function getGap(): GapGateway | null {
   if (!native) return null;
   return {
     configure: (config) => native.configure(JSON.stringify(config)),
+    current: async () => JSON.parse(await native.current()) as GapPreview | null,
     readEvents: async () => {
       const raw = JSON.parse(await native.readEvents()) as unknown;
       return Array.isArray(raw) ? (raw as GapEvent[]) : [];

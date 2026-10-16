@@ -1,7 +1,7 @@
 import React from "react";
 import { act, render, fireEvent, waitFor } from "@testing-library/react-native";
 import { defaultSettings } from "../../../data/repositories/LearningRepository";
-import type { LearningSnapshot, Concept } from "../../../domain/types";
+import type { ChatMessage, LearningSnapshot, Concept } from "../../../domain/types";
 import AiExplanation from "../../../../app/ai/[conceptId]";
 import AuthReturn from "../../../../app/auth/return";
 import { useApp } from "../../../platform/AppProvider";
@@ -16,7 +16,7 @@ jest.mock("../useProfileModels", () => ({
   }),
 }));
 jest.mock("expo-router", () => ({
-  useLocalSearchParams: () => ({ conceptId: "c" }),
+  useLocalSearchParams: jest.fn(() => ({ conceptId: "c" })),
   useRouter: () => ({}),
 }));
 jest.mock("expo-crypto", () => ({
@@ -54,6 +54,9 @@ jest.mock("../../../components/ui", () => {
     Button,
     Choice: Button,
     Message: Wrap,
+    IconButton: ({ label, onPress }: { label: string; onPress: () => void }) => (
+      <Pressable accessibilityLabel={label} onPress={onPress} />
+    ),
     Row: ({ label, onPress }: { label: string; onPress?: () => void }) => (
       <Pressable onPress={onPress}>
         <Text>{label}</Text>
@@ -86,6 +89,7 @@ const concept = (id: string, order: number): Concept => ({
   oneLiner: "definition",
   explanation: "text",
   example: "example",
+  deep: "deep",
   prerequisiteIds: [],
   sourceRefs: [],
   contentVersion: 1,
@@ -107,13 +111,26 @@ const base: LearningSnapshot = {
   memoryRevision: 0,
 };
 function context() {
+  const chat: ChatMessage[] = [];
+  let n = 0;
   return {
     snapshot: base,
     repo: {
       activeLearner: "a",
       snapshot: () => base,
-      readCache: () => null,
-      cacheCompleted: jest.fn(),
+      chatMessages: () => [...chat],
+      addChatMessage: (
+        _learner: string,
+        _concept: string,
+        role: ChatMessage["role"],
+        text: string,
+        quote: string | null = null,
+      ) => {
+        const m = { id: `m${++n}`, role, text, quote, createdAt: n };
+        chat.push(m);
+        return m;
+      },
+      clearChat: jest.fn(),
     },
     auth: { status: "ready", profileId: "p" },
     refresh: jest.fn(),
@@ -121,7 +138,7 @@ function context() {
   } as unknown as ReturnType<typeof useApp>;
 }
 test.each([true, false])(
-  "a follow-up keeps the prior answer when completed arrives early=%s",
+  "a follow-up sends the earlier answer when completed arrives early=%s",
   async (early) => {
     jest.mocked(useApp).mockReturnValue(context());
     let listener: (e: AiEvent) => void = () => {};
@@ -141,33 +158,40 @@ test.each([true, false])(
       cancelResponse: jest.fn(),
     } as unknown as ReturnType<typeof getSiwc>);
     const ui = render(<AiExplanation />);
-    fireEvent.press(ui.getByText("설명 생성"));
+    fireEvent.changeText(ui.getByLabelText("AI에게 보낼 메시지"), "쉽게 알려 줘");
+    fireEvent.press(ui.getByLabelText("보내기"));
     await waitFor(() => expect(startResponse).toHaveBeenCalledTimes(1));
     if (!early)
       await act(async () =>
-        listener({
-          requestId: "r1",
-          type: "completed",
-          text: "fixture explanation",
-        }),
+        listener({ requestId: "r1", type: "completed", text: "fixture explanation" }),
       );
-    await waitFor(() =>
-      expect(ui.getByText("fixture explanation")).toBeTruthy(),
-    );
-    fireEvent.press(ui.getByText("추가 질문"));
-    fireEvent.changeText(
-      ui.getByLabelText("추가 질문"),
-      "그 예시를 다시 설명해 주세요",
-    );
-    fireEvent.press(ui.getByText("설명 생성"));
+    await waitFor(() => expect(ui.getByText("fixture explanation")).toBeTruthy());
+    fireEvent.changeText(ui.getByLabelText("AI에게 보낼 메시지"), "그 예시를 다시 설명해 주세요");
+    fireEvent.press(ui.getByLabelText("보내기"));
     await waitFor(() => expect(startResponse).toHaveBeenCalledTimes(2));
     const request = JSON.parse(startResponse.mock.calls[1][0]);
-    expect(request.input).toContainEqual({
-      role: "assistant",
-      content: "fixture explanation",
-    });
+    expect(request.input).toContainEqual({ role: "assistant", content: "fixture explanation" });
+    expect(request.input.at(-1)).toEqual({ role: "user", content: "그 예시를 다시 설명해 주세요" });
   },
 );
+test("a dragged passage travels with the question", async () => {
+  const router = jest.requireMock("expo-router");
+  router.useLocalSearchParams.mockReturnValue({ conceptId: "c", quote: "후보키 중 하나" });
+  jest.mocked(useApp).mockReturnValue(context());
+  const startResponse = jest.fn(async () => ({ requestId: "r1" }));
+  jest.mocked(getSiwc).mockReturnValue({
+    startResponse,
+    addListener: () => ({ remove: jest.fn() }),
+    cancelResponse: jest.fn(),
+  } as unknown as ReturnType<typeof getSiwc>);
+  const ui = render(<AiExplanation />);
+  expect(ui.getByText("후보키 중 하나")).toBeTruthy();
+  fireEvent.press(ui.getByLabelText("보내기"));
+  await waitFor(() => expect(startResponse).toHaveBeenCalledTimes(1));
+  const request = JSON.parse((startResponse.mock.calls[0] as unknown as [string])[0]);
+  expect(request.input.at(-1).content).toBe("「후보키 중 하나」\n\n이 부분이 이해가 안 돼요.");
+  router.useLocalSearchParams.mockReturnValue({ conceptId: "c" });
+});
 test("return screen should stop showing pending text when authentication is ready", async () => {
   jest.mocked(useApp).mockReturnValue(context());
   const ui = render(<AuthReturn />);

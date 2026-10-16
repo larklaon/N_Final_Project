@@ -9,7 +9,7 @@ const ids = new Set(concepts.map((c) => c.id));
 if (ids.size !== concepts.length) throw Error("Duplicate concept IDs");
 const qids = new Set();
 for (const c of concepts) {
-  if (!c.title || !c.explanation || !c.sourceRefs?.length)
+  if (!c.title || !c.oneLiner || !c.explanation || !c.deep || !c.sourceRefs?.length)
     throw Error(`Missing concept data: ${c.id}`);
   for (const id of c.prerequisiteIds)
     if (!ids.has(id) || id === c.id)

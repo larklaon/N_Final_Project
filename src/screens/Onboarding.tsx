@@ -62,9 +62,8 @@ export function Onboarding() {
             제대로 공부할 때 &quot;이거 본 적 있다&quot; 싶게요.
           </BandBody>
         </Band>
-        <DarkNote icon="information-circle-outline">
-          문제와 해설은 AI가 쓴 초안이라 틀릴 수 있어요. 학습 기록은 이 기기에만
-          저장돼요.
+        <DarkNote icon="phone-portrait-outline">
+          하루 몇 분이면 충분해요. 나머지는 잠금 화면이 챙겨요.
         </DarkNote>
       </DarkScreen>
     );

@@ -1,60 +1,67 @@
 import { useEffect, useRef, useState } from "react";
-import { AppState, Linking, TextInput, View } from "react-native";
-import * as Crypto from "expo-crypto";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import {
-  Screen,
-  Heading,
-  Body,
-  Small,
-  Button,
-  Message,
-  Row,
-  Segmented,
-  Surface,
-} from "../../src/components/ui";
+  Alert,
+  AppState,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { Button, IconButton, Message } from "../../src/components/ui";
 import { useApp } from "../../src/platform/AppProvider";
 import { getSiwc, type AiEvent } from "../../modules/siwc-android";
 import {
   buildLearningContext,
-  instructions,
-  PROMPT_VERSION,
-  type AiMode,
+  chatInstructions,
 } from "../../src/services/ai/context";
 import { aiErrorMessage } from "../../src/services/ai/errors";
 import { useProfileModels } from "../../src/services/ai/useProfileModels";
-import { colors, type } from "../../src/theme/tokens";
-export default function AiExplanation() {
+import type { ChatMessage } from "../../src/domain/types";
+import { colors, fonts, type } from "../../src/theme/tokens";
+
+const suggestions = ["쉽게 다시 설명해 줘", "예시로 설명해 줘", "시험에는 어떻게 나와?"];
+const HISTORY_TURNS = 12;
+
+export default function AskAi() {
   const { snapshot } = useApp();
-  return <AiExplanationScreen key={snapshot.learnerId} />;
+  return <AskAiScreen key={snapshot.learnerId} />;
 }
-function AiExplanationScreen() {
-  const { conceptId } = useLocalSearchParams<{ conceptId: string }>();
+
+function AskAiScreen() {
+  const { conceptId, quote: quoteParam } = useLocalSearchParams<{
+    conceptId: string;
+    quote?: string;
+  }>();
   const { repo, snapshot, auth, refresh, refreshAuth } = useApp();
   const router = useRouter();
-  const [mode, setMode] = useState<AiMode>("simplify");
-  const [question, setQuestion] = useState("");
-  const [text, setText] = useState("");
-  const [status, setStatus] = useState<
-    "idle" | "loading" | "completed" | "failed" | "cancelled" | "cached"
-  >("idle");
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    repo.chatMessages(conceptId),
+  );
+  const [draft, setDraft] = useState("");
+  const [quote, setQuote] = useState(quoteParam?.trim() || "");
+  const [streaming, setStreaming] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const {
-    models,
-    error: modelError,
-    retry: retryModels,
-  } = useProfileModels(auth, refreshAuth);
+  const [failed, setFailed] = useState(false);
+  const { models, error: modelError, retry: retryModels } = useProfileModels(
+    auth,
+    refreshAuth,
+  );
+  const scroll = useRef<ScrollView>(null);
   const active = useRef<{
     requestId: string | null;
-    key: string;
     learner: string;
-    question: string;
     buffer: AiEvent[];
   } | null>(null);
-  const lastPair = useRef<{ question: string; answer: string } | null>(null);
   const mounted = useRef(true);
   const handleEvent = useRef<(event: AiEvent) => void>(() => {});
   const concept = snapshot.concepts.find((c) => c.id === conceptId);
+
   useEffect(() => {
     mounted.current = true;
     function handle(event: AiEvent) {
@@ -70,22 +77,23 @@ function AiExplanationScreen() {
         !mounted.current
       )
         return;
-      if (event.type === "delta") setText((t) => t + (event.text ?? ""));
+      if (event.type === "delta")
+        setStreaming((t) => (t ?? "") + (event.text ?? ""));
       if (event.type === "completed") {
-        setText(event.text ?? "");
-        setStatus("completed");
-        repo.cacheCompleted(a.learner, a.key, event.text ?? "", conceptId);
-        lastPair.current = { question: a.question, answer: event.text ?? "" };
+        repo.addChatMessage(a.learner, conceptId, "assistant", event.text ?? "");
+        setMessages(repo.chatMessages(conceptId));
+        setStreaming(null);
         active.current = null;
       }
       if (event.type === "failed") {
-        setStatus("failed");
+        setStreaming(null);
+        setFailed(true);
         setError(aiErrorMessage(event));
         active.current = null;
         void refreshAuth();
       }
       if (event.type === "cancelled") {
-        setStatus("cancelled");
+        setStreaming(null);
         active.current = null;
       }
     }
@@ -107,18 +115,14 @@ function AiExplanationScreen() {
       if (id) void getSiwc().cancelResponse(id);
     };
   }, [repo, conceptId, refreshAuth]);
-  async function generate() {
+
+  /** Sends the conversation so far; the newest user message is already stored. */
+  async function respond(history: ChatMessage[]) {
     if (active.current || !concept) return;
     setError("");
-    setText("");
-    setStatus("loading");
-    const a = {
-      requestId: null as string | null,
-      key: "",
-      learner: repo.activeLearner,
-      question: question.trim(),
-      buffer: [] as AiEvent[],
-    };
+    setFailed(false);
+    setStreaming("");
+    const a = { requestId: null as string | null, learner: repo.activeLearner, buffer: [] as AiEvent[] };
     active.current = a;
     try {
       let current = repo.snapshot();
@@ -127,238 +131,265 @@ function AiExplanationScreen() {
         models.some((m) => m.slug === current.settings.selectedModel)
           ? current.settings.selectedModel
           : models[0]?.slug;
-      if (!model)
-        throw Error("먼저 ChatGPT를 연결하고 모델 목록을 불러와 주세요.");
+      if (!model) throw Error("먼저 ChatGPT를 연결하고 모델 목록을 불러와 주세요.");
       if (current.settings.selectedModel !== model) {
         repo.updateSettings({ selectedModel: model });
         current = repo.snapshot();
         refresh();
       }
-      const normalized = mode === "question" ? question.trim() : "";
-      if (mode === "question" && (!normalized || normalized.length > 300))
-        throw Error("질문은 1~300자로 입력해 주세요.");
-      const context = buildLearningContext(current, conceptId);
-      const pair = mode === "question" ? lastPair.current : null;
-      const fingerprint = JSON.stringify([
-        current.learnerId,
-        conceptId,
-        concept.contentVersion,
-        mode,
-        normalized,
-        model,
-        PROMPT_VERSION,
-        current.memoryRevision,
-        context,
-        pair,
-      ]);
-      a.key = await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.SHA256,
-        fingerprint,
-      );
-      if (
-        active.current !== a ||
-        !mounted.current ||
-        a.learner !== repo.activeLearner
-      )
-        return;
-      const cached = repo.readCache(a.key);
-      if (cached) {
-        setText(cached);
-        setStatus("cached");
-        lastPair.current = {
-          question:
-            normalized ||
-            (mode === "example"
-              ? "일상적인 예시로 설명해 주세요."
-              : "쉽게 다시 설명해 주세요."),
-          answer: cached,
-        };
-        active.current = null;
-        return;
-      }
-      if (
-        auth.status !== "ready" ||
-        !auth.profileId ||
-        !current.settings.aiConsentAt
-      )
+      if (auth.status !== "ready" || !auth.profileId || !current.settings.aiConsentAt)
         throw Error("설정에서 ChatGPT 연결과 AI 전송 동의를 확인해 주세요.");
+      const context = buildLearningContext(current, conceptId);
       const input = [
-        { role: "user" as const, content: JSON.stringify({ mode, context }) },
-        ...(pair
-          ? [
-              { role: "user" as const, content: pair.question },
-              { role: "assistant" as const, content: pair.answer },
-            ]
-          : []),
-        {
-          role: "user" as const,
-          content:
-            normalized ||
-            (mode === "example"
-              ? "일상적인 예시로 설명해 주세요."
-              : "쉽게 다시 설명해 주세요."),
-        },
+        { role: "user" as const, content: JSON.stringify({ context }) },
+        ...history.slice(-HISTORY_TURNS).map((m) => ({
+          role: m.role,
+          content: m.quote ? `「${m.quote}」\n\n${m.text}` : m.text,
+        })),
       ];
-      if (
-        active.current !== a ||
-        !mounted.current ||
-        a.learner !== repo.activeLearner
-      )
-        return;
-      a.question = input[input.length - 1].content;
       const result = await getSiwc().startResponse(
-        JSON.stringify({
-          profileId: auth.profileId,
-          model,
-          instructions,
-          input,
-        }),
+        JSON.stringify({ profileId: auth.profileId, model, instructions: chatInstructions, input }),
       );
       if (active.current !== a || !mounted.current) {
         void getSiwc().cancelResponse(result.requestId);
         return;
       }
       a.requestId = result.requestId;
-      // All events use the same state transitions, regardless of bridge/promise ordering.
-      const buffered = a.buffer.splice(0);
-      for (const event of buffered) handleEvent.current(event);
+      // All events use the same transitions, whatever the bridge/promise ordering.
+      for (const event of a.buffer.splice(0)) handleEvent.current(event);
     } catch (e) {
       if (active.current === a) {
         active.current = null;
-        setStatus("failed");
-        setError(e instanceof Error ? e.message : "설명을 생성하지 못했어요.");
+        setStreaming(null);
+        setFailed(true);
+        setError(e instanceof Error ? e.message : "답을 받지 못했어요.");
       }
     }
   }
+
+  function send(text: string) {
+    const body = text.trim() || (quote ? "이 부분이 이해가 안 돼요." : "");
+    if (!body || active.current) return;
+    if (body.length > 500) return setError("질문은 500자까지 보낼 수 있어요.");
+    const saved = repo.addChatMessage(repo.activeLearner, conceptId, "user", body, quote || null);
+    if (!saved) return;
+    const history = repo.chatMessages(conceptId);
+    setMessages(history);
+    setDraft("");
+    setQuote("");
+    void respond(history);
+  }
+
+  useEffect(() => {
+    const t = setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
+    return () => clearTimeout(t);
+  }, [messages.length, streaming]);
+
   if (!concept)
     return (
-      <Screen>
-        <Message text="개념을 찾지 못했어요." error />
-      </Screen>
+      <SafeAreaView style={s.screen}>
+        <Message text="이 개념을 찾지 못했어요." error />
+      </SafeAreaView>
     );
-  const modeLabels = { simplify: "쉽게", example: "예시로", question: "추가 질문" };
+  const ready = auth.status === "ready";
+  const busy = streaming !== null;
+
   return (
-    <Screen title="나에게 맞게 설명">
-      <Heading>{concept.title}</Heading>
-      <Segmented
-        label="설명 방식"
-        options={["simplify", "example", "question"] as const}
-        value={mode}
-        format={(m) => modeLabels[m]}
-        disabled={status === "loading"}
-        onChange={setMode}
-      />
-      {mode === "question" && (
-        <TextInput
-          accessibilityLabel="추가 질문"
-          placeholder="궁금한 점 · 최대 300자"
-          placeholderTextColor={colors.bandText2}
-          multiline
-          maxLength={300}
-          editable={status !== "loading"}
-          value={question}
-          onChangeText={setQuestion}
-          style={{
-            ...type.body,
-            backgroundColor: colors.bandFaint,
-            borderBottomWidth: 2,
-            borderBottomColor: colors.ink,
-            borderRadius: 10,
-            padding: 16,
-            minHeight: 100,
-            color: colors.ink,
-          }}
-        />
-      )}
-      {auth.status === "ready" ? (
-        <>
-          {!snapshot.settings.aiConsentAt && (
-            <Button
-              secondary
-              label="학습 정보 전송에 동의"
-              onPress={() => {
-                repo.updateSettings({ aiConsentAt: Date.now() });
-                refresh();
-              }}
-            />
-          )}
-          <Button
-            label={status === "failed" ? "다시 시도" : "설명 생성"}
-            disabled={status === "loading" || models.length === 0}
-            onPress={() => void generate()}
-          />
-          <Small>
-            ChatGPT 플랜 사용 중 ·{" "}
-            {models.find((m) => m.slug === snapshot.settings.selectedModel)
-              ?.displayName ??
-              models[0]?.displayName ??
-              "모델 확인 중"}
-          </Small>
-        </>
-      ) : (
-        <Button
-          label="ChatGPT 연결 설정"
-          onPress={() => router.push("/settings")}
-        />
-      )}
-      {status === "loading" && (
-        <Button
-          secondary
-          label="생성 취소"
-          onPress={() => {
-            const id = active.current?.requestId;
-            if (id) void getSiwc().cancelResponse(id);
-            else {
-              active.current = null;
-              setStatus("cancelled");
+    <SafeAreaView edges={["top", "left", "right", "bottom"]} style={s.screen}>
+      <StatusBar style="dark" />
+      <View style={s.header}>
+        <IconButton icon="chevron-back" label="뒤로" color={colors.ink} onPress={() => router.back()} />
+        <View style={{ flex: 1 }}>
+          <Text accessibilityRole="header" style={s.title}>AI에게 물어보기</Text>
+          <Text style={s.subtitle} numberOfLines={1}>{concept.title}</Text>
+        </View>
+        {messages.length > 0 && (
+          <IconButton
+            icon="trash-outline"
+            label="대화 지우기"
+            color={colors.bandText2}
+            onPress={() =>
+              Alert.alert("이 개념의 대화를 지울까요?", "", [
+                { text: "취소", style: "cancel" },
+                {
+                  text: "지우기",
+                  style: "destructive",
+                  onPress: () => {
+                    repo.clearChat(conceptId);
+                    setMessages([]);
+                  },
+                },
+              ])
             }
-          }}
-        />
-      )}
-      {text && (
-        <Surface>
-          <Body>{text}</Body>
-          <Small>
-            {status === "cached"
-              ? "저장된 AI 설명"
-              : status === "completed"
-                ? "AI가 생성한 설명"
-                : "생성 중이거나 중단된 부분 설명이에요."}
-          </Small>
-        </Surface>
-      )}
-      {!!error && <Message text={error} error />}
-      {!!modelError && <Message text={modelError} error />}
-      {modelError && (
-        <Button
-          secondary
-          label="모델 목록 다시 불러오기"
-          onPress={retryModels}
-        />
-      )}
-      {status === "cancelled" && <Small>설명 생성을 멈췄어요.</Small>}
-      <View>
-        <Row
-          label="저장된 AI 설명 보기"
-          onPress={() => {
-            if (status === "loading") return;
-            const saved = repo.latestSavedExplanation(conceptId);
-            if (saved) {
-              setText(saved);
-              setStatus("cached");
-              setError("");
-            } else setError("저장된 설명이 없어요.");
-          }}
-        />
-        <Row
-          label="사용량 관리"
-          last
-          onPress={() =>
-            void Linking.openURL("https://chatgpt.com/settings/usage")
-          }
-        />
+          />
+        )}
       </View>
-      <Small>AI가 생성하는 설명이라 기준 자료와 다를 수 있어요.</Small>
-    </Screen>
+
+      <ScrollView ref={scroll} contentContainerStyle={s.thread} keyboardShouldPersistTaps="handled">
+        {messages.length === 0 && !busy && (
+          <View style={s.empty}>
+            <Text style={s.emptyTitle}>{concept.title}에서 막힌 곳을 물어보세요.</Text>
+            <Text style={s.emptyBody}>설명에서 헷갈리는 문장을 길게 눌러 끌어 오면 그 부분부터 풀어 줘요.</Text>
+          </View>
+        )}
+        {messages.map((m) => (
+          <Bubble key={m.id} message={m} />
+        ))}
+        {busy && (
+          <View style={[s.bubble, s.ai]} accessibilityLiveRegion="polite">
+            <Text style={[s.bubbleText, { color: colors.ink }]}>{streaming || "생각하는 중…"}</Text>
+          </View>
+        )}
+        {!!error && <Message text={error} error />}
+        {failed && !busy && messages.at(-1)?.role === "user" && (
+          <Button secondary label="다시 보내기" onPress={() => void respond(repo.chatMessages(conceptId))} />
+        )}
+        {!!modelError && <Message text={modelError} error />}
+        {!!modelError && <Button secondary label="모델 목록 다시 불러오기" onPress={retryModels} />}
+      </ScrollView>
+
+      {!ready ? (
+        <View style={s.gate}>
+          {!!quote && (
+            <View style={s.quoteChip}>
+              <View style={s.quoteBar} />
+              <Text style={s.quoteText} numberOfLines={2}>{quote}</Text>
+            </View>
+          )}
+          <Text style={s.emptyBody}>ChatGPT를 연결하면 이 개념에 대해 AI와 이야기할 수 있어요.</Text>
+          <Button label="ChatGPT 연결 설정" onPress={() => router.push("/settings")} />
+        </View>
+      ) : !snapshot.settings.aiConsentAt ? (
+        <View style={s.gate}>
+          <Text style={s.emptyBody}>개념·학습 요약·질문을 설명 생성에 보내요.</Text>
+          <Button
+            label="학습 정보 전송에 동의"
+            onPress={() => {
+              repo.updateSettings({ aiConsentAt: Date.now() });
+              refresh();
+            }}
+          />
+        </View>
+      ) : (
+        <View style={s.composer}>
+          {messages.length === 0 && !quote && !busy && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {suggestions.map((t) => (
+                <Pressable key={t} accessibilityRole="button" onPress={() => send(t)} style={s.chip}>
+                  <Text style={s.chipText}>{t}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+          {!!quote && (
+            <View style={s.quoteChip}>
+              <View style={s.quoteBar} />
+              <Text style={s.quoteText} numberOfLines={2}>{quote}</Text>
+              <IconButton icon="close" label="인용 빼기" color={colors.bandText2} onPress={() => setQuote("")} />
+            </View>
+          )}
+          <View style={s.inputRow}>
+            <TextInput
+              accessibilityLabel="AI에게 보낼 메시지"
+              value={draft}
+              onChangeText={setDraft}
+              placeholder={quote ? "이 부분에서 뭐가 헷갈려요?" : "궁금한 걸 물어보세요"}
+              placeholderTextColor={colors.bandText2}
+              multiline
+              maxLength={500}
+              editable={!busy}
+              style={s.input}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="보내기"
+              accessibilityState={{ disabled: busy || (!draft.trim() && !quote) }}
+              disabled={busy || (!draft.trim() && !quote)}
+              onPress={() => send(draft)}
+              style={[s.send, (busy || (!draft.trim() && !quote)) && { opacity: 0.35 }]}
+            >
+              <Ionicons name="arrow-up" size={22} color={colors.band} accessible={false} />
+            </Pressable>
+          </View>
+          {busy && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                const id = active.current?.requestId;
+                if (id) void getSiwc().cancelResponse(id);
+              }}
+              style={s.stop}
+            >
+              <Text style={s.stopText}>답변 멈추기</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+    </SafeAreaView>
   );
 }
+
+function Bubble({ message }: { message: ChatMessage }) {
+  const mine = message.role === "user";
+  return (
+    <View style={[s.bubble, mine ? s.me : s.ai]}>
+      {message.quote && (
+        <View style={s.bubbleQuote}>
+          <View style={[s.quoteBar, { backgroundColor: mine ? colors.inkMuted : colors.bandLabel }]} />
+          <Text style={[s.quoteText, { color: mine ? colors.inkSoft : colors.bandText2 }]} numberOfLines={3}>
+            {message.quote}
+          </Text>
+        </View>
+      )}
+      <Text selectable style={[s.bubbleText, { color: mine ? colors.band : colors.ink }]}>
+        {message.text}
+      </Text>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.band },
+  header: { minHeight: 64, flexDirection: "row", alignItems: "center", paddingHorizontal: 8, gap: 2 },
+  title: { ...type.title, fontSize: 22, lineHeight: 30, color: colors.ink },
+  subtitle: { ...type.small, fontSize: 13, color: colors.bandText2 },
+  thread: { padding: 20, gap: 12, flexGrow: 1 },
+  empty: { flexGrow: 1, justifyContent: "center", gap: 8, paddingVertical: 48 },
+  emptyTitle: { fontFamily: fonts.serif, fontSize: 22, lineHeight: 32, color: colors.ink },
+  emptyBody: { ...type.small, fontSize: 15, lineHeight: 23, color: colors.bandText2 },
+  bubble: { maxWidth: "86%", borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  me: { alignSelf: "flex-end", backgroundColor: colors.ink, borderBottomRightRadius: 4 },
+  ai: { alignSelf: "flex-start", backgroundColor: "rgba(18,21,19,0.06)", borderBottomLeftRadius: 4 },
+  bubbleText: { ...type.body, fontSize: 16, lineHeight: 25 },
+  bubbleQuote: { flexDirection: "row", gap: 8 },
+  composer: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 12,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.bandLine,
+  },
+  chip: { borderRadius: 18, borderWidth: 1, borderColor: colors.bandLine, paddingHorizontal: 14, minHeight: 40, justifyContent: "center" },
+  chipText: { ...type.small, color: colors.ink },
+  quoteChip: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.bandFaint, borderRadius: 10, paddingLeft: 12 },
+  quoteBar: { width: 3, alignSelf: "stretch", borderRadius: 2, backgroundColor: colors.bandLabel },
+  quoteText: { ...type.small, flex: 1, color: colors.bandText2, paddingVertical: 8 },
+  inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
+  input: {
+    ...type.body,
+    fontSize: 16,
+    flex: 1,
+    minHeight: 48,
+    maxHeight: 140,
+    borderRadius: 24,
+    backgroundColor: colors.bandFaint,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    color: colors.ink,
+  },
+  send: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" },
+  stop: { alignSelf: "center", minHeight: 40, justifyContent: "center", paddingHorizontal: 12 },
+  stopText: { ...type.small, color: colors.bandLabel, fontFamily: fonts.medium },
+  gate: { padding: 20, gap: 12, borderTopWidth: 1, borderTopColor: colors.bandLine },
+});

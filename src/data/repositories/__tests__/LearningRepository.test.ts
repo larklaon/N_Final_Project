@@ -124,7 +124,7 @@ test("v1 migration retains an existing graded attempt", () => {
   expect(
     db.getFirstSync<{ user_version: number }>("PRAGMA user_version")
       ?.user_version,
-  ).toBe(3);
+  ).toBe(4);
 });
 
 test("reset disables only the current learner gap cards and survives reopen", () => {
@@ -236,7 +236,7 @@ test("pre-V2 settings are normalized and v2 data migrates to v3", () => {
     learner,
   );
   db.execSync(
-    "DROP TABLE gap_events; DROP TABLE gap_progress; PRAGMA user_version=2;",
+    "DROP TABLE chat_messages; DROP TABLE gap_events; DROP TABLE gap_progress; PRAGMA user_version=2;",
   );
   const reopened = new LearningRepository(
     db,
@@ -267,4 +267,27 @@ test("settings reject unsupported goals, intervals and inverted card hours", () 
     dailyGoal: 10,
     gapIntervalMinutes: 60,
   });
+});
+
+test("chat history is kept per concept and learner, survives reopen and resets with the learner", () => {
+  const guest = repo.activeLearner;
+  repo.addChatMessage(guest, "db-primary", "user", "후보키가 뭐예요?", "기본키는 후보키 중 하나");
+  now += 1;
+  repo.addChatMessage(guest, "db-primary", "assistant", "유일하게 구별할 수 있는 키예요.");
+  repo.addChatMessage(guest, "db-foreign", "user", "다른 개념");
+  expect(repo.addChatMessage("someone-else", "db-primary", "user", "x")).toBeNull();
+  const reopened = new LearningRepository(db, () => `test-${++id}`, () => now);
+  expect(reopened.chatMessages("db-primary").map((m) => [m.role, m.quote])).toEqual([
+    ["user", "기본키는 후보키 중 하나"],
+    ["assistant", null],
+  ]);
+  reopened.selectProfile("a");
+  reopened.selectProfile("b");
+  expect(reopened.chatMessages("db-primary")).toEqual([]);
+  reopened.selectProfile(null);
+  reopened.resetCurrent();
+  expect(reopened.chatMessages("db-primary")).toEqual([]);
+  expect(
+    db.getFirstSync<{ user_version: number }>("PRAGMA user_version")?.user_version,
+  ).toBe(4);
 });

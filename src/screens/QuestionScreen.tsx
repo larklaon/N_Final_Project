@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  BackHandler,
   Easing,
   Pressable,
   StyleSheet,
@@ -195,6 +196,12 @@ export function QuestionScreen() {
           label="설정"
           color={colors.inkMuted}
           onPress={() => open("/settings")}
+        />
+        <IconButton
+          icon="close"
+          label="닫기"
+          color={colors.inkMuted}
+          onPress={() => BackHandler.exitApp()}
         />
       </View>
     </>

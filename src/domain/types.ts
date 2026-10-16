@@ -8,6 +8,8 @@ export type Concept = {
   oneLiner: string;
   explanation: string;
   example: string;
+  /** Level 3: everything worth knowing for the exam. */
+  deep: string;
   prerequisiteIds: string[];
   sourceRefs: SourceRef[];
   contentVersion: number;
@@ -86,4 +88,12 @@ export type LearningSnapshot = {
   gapProgress: Record<string, GapProgress>;
   attempts: Attempt[];
   memoryRevision: number;
+};
+export type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  /** The passage the learner dragged out of an explanation, if any. */
+  quote: string | null;
+  createdAt: number;
 };

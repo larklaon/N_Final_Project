@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import catalog from "../content/catalog.json";
-import { gapSchema, schema } from "../db/schema";
+import { chatSchema, gapSchema, schema } from "../db/schema";
 import { advanceGap, requeueGap } from "../../domain/gap";
 import {
   advanceProgress,
@@ -11,6 +11,7 @@ import {
 } from "../../domain/review";
 import type {
   Attempt,
+  ChatMessage,
   Concept,
   GapEvent,
   GapProgress,
@@ -46,7 +47,7 @@ export class LearningRepository {
     const version = db.getFirstSync<{ user_version: number }>(
       "PRAGMA user_version",
     )!.user_version;
-    if (version > 3)
+    if (version > 4)
       throw Error(
         "이 버전의 앱에서 데이터를 열 수 없어요. 앱 업데이트를 확인해 주세요.",
       );
@@ -58,6 +59,7 @@ export class LearningRepository {
         ),
       );
     if (version < 3) db.withTransactionSync(() => db.execSync(gapSchema));
+    if (version < 4) db.withTransactionSync(() => db.execSync(chatSchema));
     db.withTransactionSync(() => {
       for (const c of catalog.concepts)
         db.runSync(
@@ -429,6 +431,49 @@ export class LearningRepository {
     });
     return answer;
   }
+  chatMessages(conceptId: string, learnerId = this.activeLearner): ChatMessage[] {
+    return this.db.getAllSync<ChatMessage>(
+      "SELECT id,role,text,quote,createdAt FROM chat_messages WHERE learnerId=? AND conceptId=? ORDER BY createdAt,rowid",
+      learnerId,
+      conceptId,
+    );
+  }
+  /** Ignored when the learner changed meanwhile, like cached explanations. */
+  addChatMessage(
+    learner: string,
+    conceptId: string,
+    role: ChatMessage["role"],
+    text: string,
+    quote: string | null = null,
+  ): ChatMessage | null {
+    if (!text.trim() || text.length > 8000 || learner !== this.activeLearner)
+      return null;
+    const message: ChatMessage = {
+      id: this.uuid(),
+      role,
+      text,
+      quote: quote?.slice(0, 500) || null,
+      createdAt: this.clock(),
+    };
+    this.db.runSync(
+      "INSERT INTO chat_messages VALUES (?,?,?,?,?,?,?)",
+      message.id,
+      learner,
+      conceptId,
+      role,
+      text,
+      message.quote,
+      message.createdAt,
+    );
+    return message;
+  }
+  clearChat(conceptId: string) {
+    this.db.runSync(
+      "DELETE FROM chat_messages WHERE learnerId=? AND conceptId=?",
+      this.activeLearner,
+      conceptId,
+    );
+  }
   readCache(key: string): string | null {
     const now = this.clock();
     const row = this.db.getFirstSync<{ text: string; createdAt: number }>(
@@ -519,6 +564,7 @@ export class LearningRepository {
         "concept_progress",
         "gap_progress",
         "gap_events",
+        "chat_messages",
         "ai_cache",
         "automation_jobs",
       ])
