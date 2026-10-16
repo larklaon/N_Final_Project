@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture tab layout on teum-api36; preserves learning DB and restores display settings.
+"""Capture question-screen layout on teum-api36; preserves learning DB and restores display settings.
 Requires the app and AndroidTest APKs, Metro8081, and an onboarded synthetic learner.
 """
 from pathlib import Path
@@ -27,7 +27,7 @@ try:
   call('shell','wm','density',str(density))
   call('shell','settings','put','system','accelerometer_rotation','0')
   call('shell','settings','put','system','user_rotation',rotation)
-  log=call('shell','am','instrument','-w','-e','class','com.teumknowledge.app.TabLayoutTest','-e','captureName',name,'com.teumknowledge.app.test/androidx.test.runner.AndroidJUnitRunner')
+  log=call('shell','am','instrument','-w','-e','class','com.teumknowledge.app.LayoutTest','-e','captureName',name,'com.teumknowledge.app.test/androidx.test.runner.AndroidJUnitRunner')
   (out/(name+'.log')).write_text(log)
   print(name,log.strip(),flush=True)
   assert 'OK (1 test)' in log,name

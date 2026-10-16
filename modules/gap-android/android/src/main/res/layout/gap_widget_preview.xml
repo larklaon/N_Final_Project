@@ -1,0 +1,25 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent" android:layout_height="match_parent"
+  android:background="@drawable/gap_widget_bg" android:padding="16dp">
+  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:layout_gravity="center_vertical" android:orientation="vertical">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+      android:textColor="#FF3F5A4C" android:textSize="12sp" android:letterSpacing="0.1" android:text="네트워크" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:layout_marginTop="4dp" android:maxLines="3" android:ellipsize="end" android:fontFamily="serif"
+      android:textStyle="bold" android:textColor="#FF121513" android:textSize="16sp" android:lineSpacingExtra="2sp" android:text="HTTP는 웹 자원을 요청하고 응답하는 규약이다." />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:layout_marginTop="10dp" android:orientation="vertical">
+      <Button style="@style/GapWidgetOption" android:text="맞아요 (O)" />
+      <Button style="@style/GapWidgetOption" android:layout_marginTop="6dp" android:text="아니에요 (X)" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:layout_marginTop="6dp" android:orientation="vertical" android:visibility="gone">
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:maxLines="3" android:ellipsize="end" android:textColor="#FF263A30" android:textSize="14sp" />
+      <Button android:layout_width="match_parent" android:layout_height="44dp"
+        android:layout_marginTop="10dp" android:background="@drawable/gap_widget_next_bg" android:text="@string/gap_next"
+        android:textAllCaps="false" android:textColor="#FFE8F0EA" android:textSize="15sp" />
+    </LinearLayout>
+  </LinearLayout>
+</FrameLayout>

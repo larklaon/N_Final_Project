@@ -17,7 +17,7 @@ import {
   type PublicProfile,
 } from "../../modules/siwc-android";
 import { syncGap, withGapLock } from "../services/gap/sync";
-import { Button, Body, Title, Surface } from "../components/ui";
+import { Button, Body, Title } from "../components/ui";
 import { colors } from "../theme/tokens";
 type AppContextValue = {
   repo: LearningRepository;
@@ -134,7 +134,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   if (error)
     return (
       <View style={{ flex: 1, padding: 24, justifyContent: "center" }}>
-        <Text style={{ color: colors.error }}>{error}</Text>
+        <Text style={{ color: colors.danger }}>{error}</Text>
       </View>
     );
   if (!repo || !snapshot)
@@ -143,10 +143,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         style={{
           flex: 1,
           justifyContent: "center",
-          backgroundColor: colors.background,
+          backgroundColor: colors.ink,
         }}
       >
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.band} />
       </View>
     );
   return (
@@ -178,10 +178,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             flex: 1,
             justifyContent: "center",
             padding: 24,
-            backgroundColor: "#172D2A99",
+            backgroundColor: "rgba(18,21,19,0.72)",
           }}
         >
-          <Surface>
+          <View style={{ backgroundColor: colors.band, borderRadius: 12, padding: 24, gap: 16 }}>
             <Title>ChatGPT 플랜을 사용해요</Title>
             <Body>
               이 앱의 AI 설명은 연결한 ChatGPT 플랜 사용량을 사용해요. ChatGPT
@@ -194,7 +194,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 refresh();
               }}
             />
-          </Surface>
+          </View>
         </View>
       </Modal>
     </Context.Provider>

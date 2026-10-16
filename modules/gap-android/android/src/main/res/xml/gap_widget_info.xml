@@ -2,6 +2,6 @@
   android:minWidth="250dp" android:minHeight="180dp"
   android:targetCellWidth="4" android:targetCellHeight="3"
   android:resizeMode="horizontal|vertical" android:updatePeriodMillis="0"
-  android:initialLayout="@layout/gap_widget" android:previewLayout="@layout/gap_widget"
+  android:initialLayout="@layout/gap_widget" android:previewLayout="@layout/gap_widget_preview"
   android:description="@string/gap_widget_description"
   android:widgetCategory="home_screen|keyguard" />

@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
-import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
@@ -14,7 +13,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Development smoke test. No external accounts or mock success provider. */
+/** Development smoke test on a fresh learner. No external accounts or mock success provider. */
 @RunWith(AndroidJUnit4::class)
 class MainFlowTest {
  private val instrumentation=InstrumentationRegistry.getInstrumentation()
@@ -28,36 +27,30 @@ class MainFlowTest {
    error("Missing screen text: $text")
  }
  private fun screenshot(name:String) { device.takeScreenshot(File(instrumentation.targetContext.getExternalFilesDir(null),"$name.png")) }
- private fun scrollTo(text:String):UiObject2 {
-   for(i in 0..8) {
-     (device.findObject(By.desc(text)) ?: device.findObject(By.text(text)))?.let{if(it.visibleBounds.height()>48){device.waitForIdle(1200);return it}}
-     device.findObject(By.scrollable(true))?.scroll(Direction.DOWN,0.6f,600)
-     device.waitForIdle(1200)
-   }
-   return find(text,3000)
- }
- @Test fun offlineLearningPersistsAfterRelaunch() {
+ private fun open() {
    val context=instrumentation.targetContext
    val uri=Uri.parse("exp+teum-knowledge://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081")
    context.startActivity(Intent(Intent.ACTION_VIEW,uri).setPackage(context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-   device.wait(Until.hasObject(By.text("Continue")),10000)
+   device.wait(Until.hasObject(By.text("Continue")),5000)
    device.findObject(By.text("Continue"))?.click()
-   screenshot("launch-state")
-   device.dumpWindowHierarchy(File(instrumentation.targetContext.getExternalFilesDir(null),"launch.xml"))
-   device.wait(Until.hasObject(By.descContains("짧게 익히고")),15000)
-   if(device.hasObject(By.textContains("짧게 익히고")) || device.hasObject(By.descContains("짧게 익히고"))) { screenshot("onboarding");scrollTo("기본 학습으로 시작").click() }
-   find("오늘의 틈지식");screenshot("today")
-   find("한 개 익히기").click();find("HTTP 요청과 응답");screenshot("concept")
-   scrollTo("퀴즈 풀기").click(100)
-   if(!device.wait(Until.hasObject(By.text("짧은 퀴즈")),2000)) scrollTo("퀴즈 풀기").click(100)
-   device.waitForIdle(1500);screenshot("quiz-open");device.dumpWindowHierarchy(File(context.getExternalFilesDir(null),"quiz.xml"));find("상태 코드").click();scrollTo("정답 확인").click();find("정답이에요.");screenshot("quiz-result")
-   scrollTo("오늘 학습으로").click(100)
-   if(!device.wait(Until.hasObject(By.text("오늘의 틈지식")),2000)) scrollTo("오늘 학습으로").click(100)
-   find("오늘의 틈지식")
-   assertTrue(device.wait(Until.hasObject(By.textContains("1 / 3개")),10000))
-   screenshot("today-after")
+ }
+ @Test fun offlineLearningPersistsAfterRelaunch() {
+   open()
+   assertTrue("Onboarding did not open",device.wait(Until.hasObject(By.textContains("착각하는 앱")),30000));screenshot("onboarding")
+   find("다음").click();find("5문제 · 기본")
+   find("다음").click();find("잠금 화면에 카드를 놓을까요?")
+   find("나중에").click()
+   find("네트워크");screenshot("question")
+   find("요청한 자원을 서버에서 찾지 못했다").click()
+   find("확인").click()
+   find("맞았어요");screenshot("answer")
+   find("다음").click()
+   assertTrue("Daily count did not advance",device.wait(Until.hasObject(By.text("1 / 5")),10000))
    device.pressHome()
-   context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("teumknowledge://history")).setPackage(context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-   find("차곡차곡 쌓인 기록");assertTrue(device.wait(Until.hasObject(By.textContains("만난 개념 1 / 60개")),10000));screenshot("history")
+   instrumentation.targetContext.packageManager.getLaunchIntentForPackage(instrumentation.targetContext.packageName)!!
+     .let { instrumentation.targetContext.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+   assertTrue("Progress lost after relaunch",device.wait(Until.hasObject(By.text("1 / 5")),15000))
+   device.findObject(By.descStartsWith("퍼즐 보기")).click()
+   find("/ 60 조각");screenshot("puzzle")
  }
 }

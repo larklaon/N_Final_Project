@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AppState, Linking, TextInput } from "react-native";
+import { AppState, Linking, TextInput, View } from "react-native";
 import * as Crypto from "expo-crypto";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -8,8 +8,9 @@ import {
   Body,
   Small,
   Button,
-  Choice,
   Message,
+  Row,
+  Segmented,
   Surface,
 } from "../../src/components/ui";
 import { useApp } from "../../src/platform/AppProvider";
@@ -235,50 +236,42 @@ function AiExplanationScreen() {
         <Message text="개념을 찾지 못했어요." error />
       </Screen>
     );
+  const modeLabels = { simplify: "쉽게", example: "예시로", question: "추가 질문" };
   return (
-    <Screen>
+    <Screen title="나에게 맞게 설명">
       <Heading>{concept.title}</Heading>
-      <Small>AI가 생성하는 설명이에요. 기준 자료와 다를 수 있어요.</Small>
-      {(["simplify", "example", "question"] as const).map((m, i) => (
-        <Choice
-          key={m}
-          label={["쉽게 설명", "예시로 설명", "추가 질문"][i]}
-          selected={mode === m}
-          disabled={status === "loading"}
-          onPress={() => setMode(m)}
-        />
-      ))}
+      <Segmented
+        label="설명 방식"
+        options={["simplify", "example", "question"] as const}
+        value={mode}
+        format={(m) => modeLabels[m]}
+        disabled={status === "loading"}
+        onChange={setMode}
+      />
       {mode === "question" && (
-        <>
-          <Small>궁금한 점 · 최대 300자</Small>
-          <TextInput
-            accessibilityLabel="추가 질문"
-            multiline
-            maxLength={300}
-            editable={status !== "loading"}
-            value={question}
-            onChangeText={setQuestion}
-            style={{
-              ...type.body,
-              borderWidth: 1,
-              borderColor: colors.controlBorder,
-              borderRadius: 12,
-              padding: 16,
-              minHeight: 100,
-              color: colors.textPrimary,
-            }}
-          />
-        </>
+        <TextInput
+          accessibilityLabel="추가 질문"
+          placeholder="궁금한 점 · 최대 300자"
+          placeholderTextColor={colors.bandText2}
+          multiline
+          maxLength={300}
+          editable={status !== "loading"}
+          value={question}
+          onChangeText={setQuestion}
+          style={{
+            ...type.body,
+            backgroundColor: colors.bandFaint,
+            borderBottomWidth: 2,
+            borderBottomColor: colors.ink,
+            borderRadius: 10,
+            padding: 16,
+            minHeight: 100,
+            color: colors.ink,
+          }}
+        />
       )}
       {auth.status === "ready" ? (
         <>
-          <Small>
-            ChatGPT 플랜 사용 중 ·{" "}
-            {models.find((m) => m.slug === snapshot.settings.selectedModel)
-              ?.displayName ??
-              models[0]?.displayName ??
-              "모델 확인 중"}
-          </Small>
           {!snapshot.settings.aiConsentAt && (
             <Button
               secondary
@@ -289,6 +282,18 @@ function AiExplanationScreen() {
               }}
             />
           )}
+          <Button
+            label={status === "failed" ? "다시 시도" : "설명 생성"}
+            disabled={status === "loading" || models.length === 0}
+            onPress={() => void generate()}
+          />
+          <Small>
+            ChatGPT 플랜 사용 중 ·{" "}
+            {models.find((m) => m.slug === snapshot.settings.selectedModel)
+              ?.displayName ??
+              models[0]?.displayName ??
+              "모델 확인 중"}
+          </Small>
         </>
       ) : (
         <Button
@@ -296,24 +301,6 @@ function AiExplanationScreen() {
           onPress={() => router.push("/settings")}
         />
       )}
-      <Button
-        secondary
-        label="저장된 AI 설명 보기"
-        disabled={status === "loading"}
-        onPress={() => {
-          const saved = repo.latestSavedExplanation(conceptId);
-          if (saved) {
-            setText(saved);
-            setStatus("cached");
-            setError("");
-          } else setError("저장된 설명이 없어요.");
-        }}
-      />
-      <Button
-        label={status === "failed" ? "다시 시도" : "설명 생성"}
-        disabled={status === "loading" || models.length === 0}
-        onPress={() => void generate()}
-      />
       {status === "loading" && (
         <Button
           secondary
@@ -350,19 +337,28 @@ function AiExplanationScreen() {
         />
       )}
       {status === "cancelled" && <Small>설명 생성을 멈췄어요.</Small>}
-      <Button
-        secondary
-        label="사용량 관리"
-        onPress={() =>
-          void Linking.openURL("https://chatgpt.com/settings/usage")
-        }
-      />
-      <Small>기준 개념: {concept.oneLiner}</Small>
-      <Button
-        secondary
-        label="기본 개념으로 돌아가기"
-        onPress={() => router.back()}
-      />
+      <View>
+        <Row
+          label="저장된 AI 설명 보기"
+          onPress={() => {
+            if (status === "loading") return;
+            const saved = repo.latestSavedExplanation(conceptId);
+            if (saved) {
+              setText(saved);
+              setStatus("cached");
+              setError("");
+            } else setError("저장된 설명이 없어요.");
+          }}
+        />
+        <Row
+          label="사용량 관리"
+          last
+          onPress={() =>
+            void Linking.openURL("https://chatgpt.com/settings/usage")
+          }
+        />
+      </View>
+      <Small>AI가 생성하는 설명이라 기준 자료와 다를 수 있어요.</Small>
     </Screen>
   );
 }

@@ -9,7 +9,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/teum-icon.png",
-        "backgroundColor": "#176B5B"
+        "backgroundColor": "#121513"
       },
       "predictiveBackGestureEnabled": true,
       "package": "com.teumknowledge.app",
@@ -32,7 +32,18 @@
         }
       ],
       "./plugins/withSiwcAndroid.js",
-      "expo-font"
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./node_modules/@expo-google-fonts/hahmlet/700Bold/Hahmlet_700Bold.ttf",
+            "./node_modules/@expo-google-fonts/ibm-plex-sans-kr/400Regular/IBMPlexSansKR_400Regular.ttf",
+            "./node_modules/@expo-google-fonts/ibm-plex-sans-kr/500Medium/IBMPlexSansKR_500Medium.ttf",
+            "./node_modules/@expo-google-fonts/ibm-plex-sans-kr/600SemiBold/IBMPlexSansKR_600SemiBold.ttf"
+          ]
+        }
+      ],
+      "expo-asset"
     ],
     "scheme": "teumknowledge",
     "platforms": [

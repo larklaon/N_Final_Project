@@ -1,7 +1,7 @@
 import React from "react";
 import { Alert } from "react-native";
 import { act, render, fireEvent, waitFor } from "@testing-library/react-native";
-import Settings from "../../../app/(tabs)/settings";
+import Settings from "../../../app/settings";
 import { getSiwc, type AuthStatus } from "../../../modules/siwc-android";
 import { useApp } from "../AppProvider";
 import { defaultSettings } from "../../data/repositories/LearningRepository";
@@ -41,6 +41,10 @@ jest.mock("../../components/ui", () => {
     Button,
     Choice: Button,
     Message: Wrap,
+    SectionLabel: Copy,
+    Row: Wrap,
+    Segmented: Wrap,
+    Toggle: Wrap,
   };
 });
 afterEach(() => jest.restoreAllMocks());

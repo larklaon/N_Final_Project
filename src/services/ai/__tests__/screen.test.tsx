@@ -54,6 +54,28 @@ jest.mock("../../../components/ui", () => {
     Button,
     Choice: Button,
     Message: Wrap,
+    Row: ({ label, onPress }: { label: string; onPress?: () => void }) => (
+      <Pressable onPress={onPress}>
+        <Text>{label}</Text>
+      </Pressable>
+    ),
+    Segmented: ({
+      options,
+      onChange,
+      format,
+    }: {
+      options: string[];
+      onChange: (v: string) => void;
+      format: (v: string) => string;
+    }) => (
+      <View>
+        {options.map((o) => (
+          <Pressable key={o} onPress={() => onChange(o)}>
+            <Text>{format(o)}</Text>
+          </Pressable>
+        ))}
+      </View>
+    ),
   };
 });
 const concept = (id: string, order: number): Concept => ({

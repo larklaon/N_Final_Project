@@ -1,7 +1,8 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/gap_widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
   android:background="@drawable/gap_widget_bg" android:padding="16dp">
-  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:layout_gravity="center_vertical" android:orientation="vertical">
     <TextView android:id="@+id/gap_widget_area" android:layout_width="wrap_content" android:layout_height="wrap_content"
       android:textColor="#FF3F5A4C" android:textSize="12sp" android:letterSpacing="0.1" android:text="틈지식" />
     <TextView android:id="@+id/gap_widget_prompt" android:layout_width="match_parent" android:layout_height="wrap_content"

@@ -1,5 +1,6 @@
-import { useEffect, useRef, type PropsWithChildren } from "react";
+import { useEffect, useRef, useState, type PropsWithChildren } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Pressable,
   ScrollView,
@@ -7,42 +8,82 @@ import {
   Text,
   View,
   useWindowDimensions,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors, type } from "../theme/tokens";
+import { StatusBar } from "expo-status-bar";
+import { useRouter } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import type { PieceState } from "../domain/puzzle";
+import { colors, fonts, type } from "../theme/tokens";
+
+export function useReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduced);
+    const sub = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      setReduced,
+    );
+    return () => sub.remove();
+  }, []);
+  return reduced;
+}
+
+function gutter(width: number) {
+  return width < 360 ? 16 : 24;
+}
+
+/* ───────────── Light screens: the gap has opened ───────────── */
+
+/** Settings, puzzle, concept, AI. Fully light: no focus needed here. */
 export function Screen({
   children,
-  topInset = false,
-  tabScreen = false,
+  title,
+  back = true,
   scrollKey,
 }: {
   children: React.ReactNode;
-  topInset?: boolean;
-  tabScreen?: boolean;
+  title?: string;
+  back?: boolean;
   scrollKey?: string;
 }) {
   const { width } = useWindowDimensions();
+  const router = useRouter();
   const scroll = useRef<ScrollView>(null);
   useEffect(() => {
     if (scrollKey !== undefined)
       scroll.current?.scrollTo({ y: 0, animated: false });
   }, [scrollKey]);
   return (
-    <SafeAreaView
-      edges={[
-        "left",
-        "right",
-        ...(topInset ? ["top" as const] : []),
-        ...(!tabScreen || width >= 840 ? ["bottom" as const] : []),
-      ]}
-      style={s.safe}
-    >
+    <SafeAreaView edges={["top", "left", "right", "bottom"]} style={s.light}>
+      <StatusBar style="dark" />
+      {(back || title) && (
+        <View style={[s.header, { paddingHorizontal: gutter(width) - 12 }]}>
+          {back && (
+            <IconButton
+              icon="chevron-back"
+              label="뒤로"
+              color={colors.ink}
+              onPress={() =>
+                router.canGoBack() ? router.back() : router.replace("/")
+              }
+            />
+          )}
+          {title && (
+            <Text accessibilityRole="header" style={s.screenTitle}>
+              {title}
+            </Text>
+          )}
+        </View>
+      )}
       <ScrollView
         ref={scroll}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[
           s.page,
-          { paddingHorizontal: width < 360 ? 16 : 20 },
+          { paddingHorizontal: gutter(width) },
         ]}
       >
         <View style={s.measure}>{children}</View>
@@ -57,9 +98,10 @@ export function Heading({ children }: PropsWithChildren) {
     </Text>
   );
 }
-export function Title({ children }: PropsWithChildren) {
+export const Title = Heading;
+export function SectionLabel({ children }: PropsWithChildren) {
   return (
-    <Text accessibilityRole="header" style={s.title}>
+    <Text accessibilityRole="header" style={s.sectionLabel}>
       {children}
     </Text>
   );
@@ -70,6 +112,7 @@ export function Body({ children }: PropsWithChildren) {
 export function Small({ children }: PropsWithChildren) {
   return <Text style={s.small}>{children}</Text>;
 }
+/** A quiet well for generated text; light screens otherwise avoid boxes. */
 export function Surface({ children }: PropsWithChildren) {
   return <View style={s.surface}>{children}</View>;
 }
@@ -88,38 +131,30 @@ export function Button({
   busy?: boolean;
   danger?: boolean;
 }) {
+  const fg = danger ? colors.danger : secondary ? colors.ink : colors.band;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: disabled || busy, busy }}
       disabled={disabled || busy}
       onPress={onPress}
-      android_ripple={{ color: colors.primarySoft }}
       style={({ pressed }) => [
-        s.button,
-        secondary
-          ? s.secondary
-          : { backgroundColor: danger ? colors.error : colors.primary },
+        s.lightButton,
+        danger
+          ? s.dangerButton
+          : secondary
+            ? { backgroundColor: colors.bandFaint }
+            : { backgroundColor: colors.ink },
         (disabled || busy) && s.disabled,
         pressed && s.pressed,
       ]}
     >
-      {busy && (
-        <ActivityIndicator
-          color={secondary ? colors.primary : colors.onPrimary}
-        />
-      )}
-      <Text
-        style={[
-          s.buttonText,
-          { color: secondary ? colors.primary : colors.onPrimary },
-        ]}
-      >
-        {label}
-      </Text>
+      {busy && <ActivityIndicator color={fg} />}
+      <Text style={[s.buttonText, { color: fg }]}>{label}</Text>
     </Pressable>
   );
 }
+/** Radio row on a light screen. Selection inverts, as everywhere in the app. */
 export function Choice({
   label,
   selected,
@@ -139,12 +174,21 @@ export function Choice({
       onPress={onPress}
       style={({ pressed }) => [
         s.choice,
-        selected && s.selected,
+        { backgroundColor: selected ? colors.ink : colors.bandFaint },
         pressed && s.pressed,
       ]}
     >
-      <View style={[s.radio, selected && s.radioSelected]} />
-      <Text style={s.choiceText}>{label}</Text>
+      <Text style={[s.choiceText, { color: selected ? colors.band : colors.ink }]}>
+        {label}
+      </Text>
+      {selected && (
+        <Ionicons
+          name="checkmark"
+          size={20}
+          color={colors.band}
+          accessible={false}
+        />
+      )}
     </Pressable>
   );
 }
@@ -156,78 +200,596 @@ export function Message({
   error?: boolean;
 }) {
   return (
-    <View
-      accessibilityLiveRegion="polite"
-      style={[
-        s.message,
-        { backgroundColor: error ? colors.errorSoft : colors.primarySoft },
-      ]}
-    >
-      <Text
-        style={[s.body, { color: error ? colors.error : colors.textPrimary }]}
-      >
+    <View accessibilityLiveRegion="polite" style={s.message}>
+      <Ionicons
+        name={error ? "alert-circle-outline" : "information-circle-outline"}
+        size={18}
+        color={error ? colors.danger : colors.bandLabel}
+        accessible={false}
+        style={{ marginTop: 3 }}
+      />
+      <Text style={[s.small, { flex: 1, color: error ? colors.danger : colors.bandBody }]}>
         {text}
       </Text>
     </View>
   );
 }
+/** Settings row: label (+ sub) on the left, control or value on the right. */
+export function Row({
+  label,
+  sub,
+  value,
+  right,
+  onPress,
+  danger = false,
+  last = false,
+}: {
+  label: string;
+  sub?: string;
+  value?: string;
+  right?: React.ReactNode;
+  onPress?: () => void;
+  danger?: boolean;
+  last?: boolean;
+}) {
+  const content = (
+    <>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={[s.rowLabel, danger && { color: colors.danger }]}>
+          {label}
+        </Text>
+        {sub && <Text style={s.rowSub}>{sub}</Text>}
+      </View>
+      {value && <Text style={s.rowValue}>{value}</Text>}
+      {right}
+      {onPress && !right && (
+        <Ionicons
+          name="chevron-forward"
+          size={16}
+          color={colors.bandText2}
+          accessible={false}
+        />
+      )}
+    </>
+  );
+  const style = [s.row, !last && s.rowLine];
+  return onPress ? (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={value ? `${label}, ${value}` : label}
+      onPress={onPress}
+      style={({ pressed }) => [...style, pressed && s.pressed]}
+    >
+      {content}
+    </Pressable>
+  ) : (
+    <View style={style}>{content}</View>
+  );
+}
+export function Toggle({
+  value,
+  onValueChange,
+  label,
+  disabled = false,
+}: {
+  value: boolean;
+  onValueChange: (next: boolean) => void;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: value, disabled }}
+      disabled={disabled}
+      hitSlop={8}
+      onPress={() => onValueChange(!value)}
+      style={[
+        s.toggle,
+        { backgroundColor: value ? colors.ink : colors.bandLine },
+        { justifyContent: value ? "flex-end" : "flex-start" },
+        disabled && s.disabled,
+      ]}
+    >
+      <View
+        style={[
+          s.knob,
+          { backgroundColor: value ? colors.band : "#FFFFFF" },
+        ]}
+      />
+    </Pressable>
+  );
+}
+export function Segmented<T extends string | number>({
+  options,
+  value,
+  onChange,
+  label,
+  disabled = false,
+  format = (v) => String(v),
+}: {
+  options: T[];
+  value: T;
+  onChange: (v: T) => void;
+  label: string;
+  disabled?: boolean;
+  format?: (v: T) => string;
+}) {
+  return (
+    <View accessibilityRole="radiogroup" accessibilityLabel={label} style={s.segmented}>
+      {options.map((o) => {
+        const on = o === value;
+        return (
+          <Pressable
+            key={String(o)}
+            accessibilityRole="radio"
+            accessibilityLabel={`${label} ${format(o)}`}
+            accessibilityState={{ checked: on, disabled }}
+            disabled={disabled}
+            onPress={() => onChange(o)}
+            style={[s.segment, on && { backgroundColor: colors.ink }]}
+          >
+            <Text
+              style={[
+                s.segmentText,
+                { color: on ? colors.band : colors.ink },
+                on && { fontFamily: fonts.semibold },
+              ]}
+            >
+              {format(o)}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+export function TextLink({
+  label,
+  onPress,
+  tone = "light",
+}: {
+  label: string;
+  onPress: () => void;
+  tone?: "light" | "dark";
+}) {
+  return (
+    <Pressable
+      accessibilityRole="link"
+      onPress={onPress}
+      style={({ pressed }) => [s.link, pressed && s.pressed]}
+    >
+      <Text
+        style={[
+          s.linkText,
+          { color: tone === "dark" ? colors.inkSoft : colors.bandLabel },
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+export function IconButton({
+  icon,
+  label,
+  onPress,
+  color,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  label: string;
+  onPress: () => void;
+  color: string;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [s.iconButton, pressed && s.pressed]}
+    >
+      <Ionicons name={icon} size={22} color={color} accessible={false} />
+    </Pressable>
+  );
+}
+
+/* ───────────── Dark screens: focus on one question ───────────── */
+
+export function DarkScreen({
+  header,
+  footer,
+  children,
+}: {
+  header?: React.ReactNode;
+  footer?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const { width } = useWindowDimensions();
+  return (
+    <SafeAreaView edges={["top", "left", "right", "bottom"]} style={s.dark}>
+      <StatusBar style="light" />
+      {header && (
+        <View style={[s.darkHeader, { paddingHorizontal: gutter(width) }]}>
+          {header}
+        </View>
+      )}
+      <ScrollView
+        contentContainerStyle={s.darkBody}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={s.darkMeasure}>{children}</View>
+      </ScrollView>
+      {footer && (
+        <View style={[s.darkFooter, { paddingHorizontal: gutter(width) }]}>
+          <View style={s.darkMeasureInner}>{footer}</View>
+        </View>
+      )}
+    </SafeAreaView>
+  );
+}
+/**
+ * The gap: a light band whose top and bottom edges slant up to the right.
+ * Drawn as a rectangle with two ink corner triangles (Android skews whole layers, not edges).
+ */
+export function Band({
+  children,
+  slant = 3,
+  thin = false,
+  style,
+}: {
+  children: React.ReactNode;
+  slant?: number;
+  thin?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { width: window } = useWindowDimensions();
+  const [width, setWidth] = useState(window);
+  const rise = Math.round(width * Math.tan((slant * Math.PI) / 180));
+  return (
+    <View
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      style={[
+        s.band,
+        {
+          paddingHorizontal: gutter(window),
+          paddingTop: (thin ? 32 : 44) + rise,
+          paddingBottom: (thin ? 32 : 44) + rise,
+        },
+        style,
+      ]}
+    >
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <View style={{ flex: 1, backgroundColor: colors.band }} />
+        <View
+          style={[
+            s.corner,
+            {
+              top: 0,
+              left: 0,
+              borderTopWidth: rise,
+              borderRightWidth: width,
+              borderTopColor: colors.ink,
+            },
+          ]}
+        />
+        <View
+          style={[
+            s.corner,
+            {
+              bottom: 0,
+              right: 0,
+              borderBottomWidth: rise,
+              borderLeftWidth: width,
+              borderBottomColor: colors.ink,
+            },
+          ]}
+        />
+      </View>
+      <View style={{ gap: 14 }}>{children}</View>
+    </View>
+  );
+}
+export function BandLabel({ children }: PropsWithChildren) {
+  return <Text style={s.bandLabel}>{children}</Text>;
+}
+export function BandBody({ children }: PropsWithChildren) {
+  return <Text style={s.bandBody}>{children}</Text>;
+}
+export function ContextBlock({ text, code }: { text: string; code?: boolean }) {
+  return code ? (
+    <ScrollView horizontal style={s.codeWell} contentContainerStyle={{ padding: 12 }}>
+      <Text style={s.code} accessibilityLabel={`코드: ${text}`}>
+        {text}
+      </Text>
+    </ScrollView>
+  ) : (
+    <Text style={s.contextText}>{text}</Text>
+  );
+}
+export function OptionRow({
+  index,
+  label,
+  selected,
+  onPress,
+  disabled = false,
+}: {
+  index: number;
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityLabel={`${index}번, ${label}`}
+      accessibilityState={{ checked: selected, disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        s.option,
+        { backgroundColor: selected ? colors.ink : colors.bandFaint },
+        pressed && !selected && { backgroundColor: colors.bandLine },
+      ]}
+    >
+      <Text
+        style={[s.optionIndex, { color: selected ? colors.band : colors.bandText2 }]}
+      >
+        {index}
+      </Text>
+      <Text style={[s.optionText, { color: selected ? colors.band : colors.ink }]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+export function PrimaryButton({
+  label,
+  onPress,
+  disabled = false,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        s.primary,
+        disabled && { opacity: 0.35 },
+        pressed && s.pressed,
+      ]}
+    >
+      <Text style={s.primaryText}>{label}</Text>
+    </Pressable>
+  );
+}
+/** Small line under the band: secondary info lives in the dark. */
+export function DarkNote({
+  icon,
+  children,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={s.darkNote}>
+      <Ionicons
+        name={icon}
+        size={18}
+        color={colors.inkMuted}
+        accessible={false}
+        style={{ marginTop: 2 }}
+      />
+      <Text style={s.darkNoteText}>{children}</Text>
+    </View>
+  );
+}
+/** One area's pieces. Fitted = filled, seen on a gap surface = outline. */
+export function PuzzleMap({
+  pieces,
+  ring = [],
+  size = 8,
+  tone = "dark",
+}: {
+  pieces: PieceState[];
+  ring?: number[];
+  size?: number;
+  tone?: "dark" | "light";
+}) {
+  const fill = tone === "dark" ? colors.band : colors.ink;
+  const empty = tone === "dark" ? colors.inkLine : colors.bandFaint;
+  return (
+    <View
+      style={{ flexDirection: "row", gap: Math.max(3, size / 2.5) }}
+      accessible={false}
+    >
+      {pieces.map((state, i) => (
+        <View
+          key={i}
+          style={{
+            width: size * (tone === "dark" ? 1.4 : 1.35),
+            height: size,
+            borderRadius: Math.max(2, size / 4),
+            backgroundColor:
+              state === "fitted" ? fill : state === "none" ? empty : "transparent",
+            borderWidth: state === "seen" ? 1.5 : 0,
+            borderColor: fill,
+            ...(ring.includes(i)
+              ? { outlineWidth: 1, outlineColor: fill, outlineOffset: 2 }
+              : {}),
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  page: { paddingTop: 24, paddingBottom: 32, alignItems: "center" },
-  measure: { width: "100%", maxWidth: 600, gap: 24 },
-  heading: { ...type.heading, color: colors.textPrimary },
-  title: { ...type.title, color: colors.textPrimary },
-  body: { ...type.body, color: colors.textPrimary },
-  small: { ...type.small, color: colors.textSecondary },
-  surface: {
-    backgroundColor: colors.surface,
-    padding: 24,
-    borderRadius: 16,
-    gap: 16,
+  light: { flex: 1, backgroundColor: colors.band },
+  dark: { flex: 1, backgroundColor: colors.ink },
+  header: {
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
   },
-  button: {
-    minHeight: 52,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+  screenTitle: { ...type.title, color: colors.ink, flexShrink: 1 },
+  page: { paddingTop: 12, paddingBottom: 40, alignItems: "center" },
+  measure: { width: "100%", maxWidth: 600, gap: 24 },
+  heading: { ...type.title, color: colors.ink },
+  sectionLabel: { ...type.label, color: colors.bandLabel, marginBottom: -8 },
+  body: { ...type.body, color: colors.ink },
+  small: { ...type.small, color: colors.bandText2 },
+  surface: {
+    backgroundColor: colors.bandFaint,
     borderRadius: 12,
+    padding: 18,
+    gap: 12,
+  },
+  lightButton: {
+    minHeight: 52,
+    borderRadius: 4,
+    paddingHorizontal: 20,
+    paddingVertical: 13,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
-  secondary: { backgroundColor: colors.primarySoft },
+  dangerButton: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: colors.danger,
+  },
   buttonText: {
-    ...type.label,
-    fontWeight: "600",
+    fontFamily: fonts.semibold,
+    fontSize: 16,
+    lineHeight: 24,
     flexShrink: 1,
     textAlign: "center",
   },
-  pressed: { opacity: 0.75 },
-  disabled: { opacity: 0.5 },
+  pressed: { opacity: 0.7 },
+  disabled: { opacity: 0.4 },
   choice: {
     minHeight: 56,
-    borderWidth: 1,
-    borderColor: colors.controlBorder,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
-  selected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
-    borderWidth: 2,
-    padding: 15,
-  },
-  choiceText: { ...type.body, color: colors.textPrimary, flex: 1 },
-  radio: {
-    width: 20,
-    height: 20,
+  choiceText: { ...type.option, flex: 1 },
+  message: {
+    flexDirection: "row",
+    gap: 8,
+    padding: 14,
     borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.controlBorder,
+    backgroundColor: colors.bandFaint,
   },
-  radioSelected: { borderWidth: 6, borderColor: colors.primary },
-  message: { padding: 16, borderRadius: 12 },
+  row: {
+    minHeight: 64,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  rowLine: { borderBottomWidth: 1, borderBottomColor: colors.bandLine },
+  rowLabel: { ...type.option, fontFamily: fonts.regular, color: colors.ink },
+  rowSub: { ...type.small, color: colors.bandText2 },
+  rowValue: { ...type.small, fontSize: 16, color: colors.bandText2 },
+  toggle: {
+    width: 52,
+    height: 32,
+    borderRadius: 16,
+    padding: 3,
+    flexDirection: "row",
+  },
+  knob: { width: 26, height: 26, borderRadius: 13 },
+  segmented: {
+    flexDirection: "row",
+    backgroundColor: colors.bandFaint,
+    borderRadius: 10,
+    padding: 3,
+  },
+  segment: {
+    minWidth: 52,
+    minHeight: 44,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  segmentText: { fontFamily: fonts.regular, fontSize: 16, lineHeight: 22 },
+  link: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  linkText: { fontFamily: fonts.medium, fontSize: 15, lineHeight: 22 },
+  iconButton: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  darkHeader: {
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  darkBody: { flexGrow: 1, justifyContent: "center", paddingVertical: 16 },
+  darkMeasure: { width: "100%", alignSelf: "center", maxWidth: 680, gap: 28 },
+  darkFooter: { paddingTop: 8, paddingBottom: 16, alignItems: "center" },
+  darkMeasureInner: { width: "100%", maxWidth: 600, gap: 4 },
+  band: { position: "relative" },
+  corner: {
+    position: "absolute",
+    width: 0,
+    height: 0,
+    borderColor: "transparent",
+  },
+  bandLabel: { ...type.label, color: colors.bandLabel },
+  bandBody: { ...type.body, color: colors.bandBody },
+  codeWell: { backgroundColor: colors.bandFaint, borderRadius: 8, flexGrow: 0 },
+  code: { ...type.code, color: colors.ink },
+  contextText: { ...type.small, fontSize: 15, color: colors.bandText2 },
+  option: {
+    minHeight: 54,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 14,
+  },
+  optionIndex: { ...type.option, width: 14 },
+  optionText: { ...type.option, flex: 1 },
+  primary: {
+    minHeight: 58,
+    borderRadius: 4,
+    backgroundColor: colors.band,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  primaryText: { ...type.button, color: colors.ink, textAlign: "center" },
+  darkNote: {
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 28,
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 600,
+  },
+  darkNoteText: { ...type.small, color: colors.inkSoft, flex: 1 },
 });
