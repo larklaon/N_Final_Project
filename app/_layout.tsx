@@ -15,6 +15,8 @@ export default function Layout() {
         }}
       >
         <Stack.Screen name="index" options={{ contentStyle: { backgroundColor: colors.ink } }} />
+        {/* Asking about a question slides up over it, like a sheet. */}
+        <Stack.Screen name="ai/[conceptId]" options={{ animation: "slide_from_bottom" }} />
       </Stack>
     </AppProvider>
   );

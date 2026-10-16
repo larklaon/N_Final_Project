@@ -15,7 +15,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import type { PieceState } from "../domain/puzzle";
 import { colors, fonts, type } from "../theme/tokens";
 
 export function useReducedMotion() {
@@ -590,38 +589,39 @@ export function DarkNote({
     </View>
   );
 }
-/** One area's pieces. Fitted = filled, seen on a gap surface = outline. */
+/** Fill for a resolution step 0–5: the clearer the knowledge, the stronger the color. */
+export function bandColor(level: number, tone: "dark" | "light") {
+  const alphas = [0, 0.26, 0.46, 0.68, 0.88, 1];
+  if (level <= 0) return tone === "dark" ? colors.inkLine : colors.bandFaint;
+  return tone === "dark"
+    ? `rgba(232,240,234,${alphas[level]})`
+    : `rgba(18,21,19,${alphas[level]})`;
+}
+/** One area's pieces, colored by resolution. Step 5 (fully in your head) gets a ring. */
 export function PuzzleMap({
-  pieces,
+  levels,
   ring = [],
   size = 8,
   tone = "dark",
 }: {
-  pieces: PieceState[];
+  levels: number[];
   ring?: number[];
   size?: number;
   tone?: "dark" | "light";
 }) {
-  const fill = tone === "dark" ? colors.band : colors.ink;
-  const empty = tone === "dark" ? colors.inkLine : colors.bandFaint;
+  const full = tone === "dark" ? colors.band : colors.ink;
   return (
-    <View
-      style={{ flexDirection: "row", gap: Math.max(3, size / 2.5) }}
-      accessible={false}
-    >
-      {pieces.map((state, i) => (
+    <View style={{ flexDirection: "row", gap: Math.max(3, size / 2.5) }} accessible={false}>
+      {levels.map((level, i) => (
         <View
           key={i}
           style={{
             width: size * (tone === "dark" ? 1.4 : 1.35),
             height: size,
             borderRadius: Math.max(2, size / 4),
-            backgroundColor:
-              state === "fitted" ? fill : state === "none" ? empty : "transparent",
-            borderWidth: state === "seen" ? 1.5 : 0,
-            borderColor: fill,
-            ...(ring.includes(i)
-              ? { outlineWidth: 1, outlineColor: fill, outlineOffset: 2 }
+            backgroundColor: bandColor(level, tone),
+            ...(ring.includes(i) || level === 5
+              ? { outlineWidth: 1, outlineColor: full, outlineOffset: 2 }
               : {}),
           }}
         />

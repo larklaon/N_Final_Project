@@ -34,9 +34,18 @@ export default function AskAi() {
 }
 
 function AskAiScreen() {
-  const { conceptId, quote: quoteParam } = useLocalSearchParams<{
+  const {
+    conceptId,
+    quote: quoteParam,
+    mode,
+    questionId,
+    selected,
+  } = useLocalSearchParams<{
     conceptId: string;
     quote?: string;
+    mode?: "hint" | "why";
+    questionId?: string;
+    selected?: string;
   }>();
   const { repo, snapshot, auth, refresh, refreshAuth } = useApp();
   const router = useRouter();
@@ -61,6 +70,22 @@ function AskAiScreen() {
   const mounted = useRef(true);
   const handleEvent = useRef<(event: AiEvent) => void>(() => {});
   const concept = snapshot.concepts.find((c) => c.id === conceptId);
+  // Opened from a question: the question itself is the context, not a quoted passage.
+  const question = (() => {
+    if (!questionId) return null;
+    try {
+      return repo.quiz(questionId);
+    } catch {
+      return null;
+    }
+  })();
+  const chosen = question?.options.find((o) => o.id === selected)?.text ?? null;
+  const prompts =
+    mode === "why"
+      ? ["왜 이게 정답이야?", "내가 고른 답은 왜 틀렸어?", "비슷한 예를 하나 들어 줘"]
+      : mode === "hint"
+        ? ["힌트 하나만 줘", "이 문제가 묻는 게 뭐야?"]
+        : suggestions;
 
   useEffect(() => {
     mounted.current = true;
@@ -140,8 +165,24 @@ function AskAiScreen() {
       if (auth.status !== "ready" || !auth.profileId || !current.settings.aiConsentAt)
         throw Error("설정에서 ChatGPT 연결과 AI 전송 동의를 확인해 주세요.");
       const context = buildLearningContext(current, conceptId);
+      const about = question
+        ? {
+            mode,
+            prompt: question.prompt,
+            context: question.context,
+            options: question.options.map((o) => o.text),
+            chosen,
+            // The answer is only shared once the learner has answered.
+            ...(mode === "why"
+              ? {
+                  correct: question.options.find((o) => o.id === question.correctOptionId)?.text,
+                  explanation: question.explanation,
+                }
+              : {}),
+          }
+        : undefined;
       const input = [
-        { role: "user" as const, content: JSON.stringify({ context }) },
+        { role: "user" as const, content: JSON.stringify({ context, question: about }) },
         ...history.slice(-HISTORY_TURNS).map((m) => ({
           role: m.role,
           content: m.quote ? `「${m.quote}」\n\n${m.text}` : m.text,
@@ -171,7 +212,13 @@ function AskAiScreen() {
     const body = text.trim() || (quote ? "이 부분이 이해가 안 돼요." : "");
     if (!body || active.current) return;
     if (body.length > 500) return setError("질문은 500자까지 보낼 수 있어요.");
-    const saved = repo.addChatMessage(repo.activeLearner, conceptId, "user", body, quote || null);
+    const saved = repo.addChatMessage(
+      repo.activeLearner,
+      conceptId,
+      "user",
+      body,
+      quote || question?.prompt || null,
+    );
     if (!saved) return;
     const history = repo.chatMessages(conceptId);
     setMessages(history);
@@ -226,7 +273,14 @@ function AskAiScreen() {
       </View>
 
       <ScrollView ref={scroll} contentContainerStyle={s.thread} keyboardShouldPersistTaps="handled">
-        {messages.length === 0 && !busy && (
+        {question && (
+          <View style={s.about}>
+            <Text style={s.aboutLabel}>{mode === "why" ? "방금 푼 문제" : "지금 푸는 문제"}</Text>
+            <Text style={s.aboutPrompt}>{question.prompt}</Text>
+            {mode === "why" && chosen && <Text style={s.aboutMeta}>고른 답 · {chosen}</Text>}
+          </View>
+        )}
+        {messages.length === 0 && !busy && !question && (
           <View style={s.empty}>
             <Text style={s.emptyTitle}>{concept.title}에서 막힌 곳을 물어보세요.</Text>
             <Text style={s.emptyBody}>설명에서 헷갈리는 문장을 길게 눌러 끌어 오면 그 부분부터 풀어 줘요.</Text>
@@ -272,9 +326,9 @@ function AskAiScreen() {
         </View>
       ) : (
         <View style={s.composer}>
-          {messages.length === 0 && !quote && !busy && (
+          {(messages.length === 0 || !!question) && !quote && !busy && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {suggestions.map((t) => (
+              {prompts.map((t) => (
                 <Pressable key={t} accessibilityRole="button" onPress={() => send(t)} style={s.chip}>
                   <Text style={s.chipText}>{t}</Text>
                 </Pressable>
@@ -293,7 +347,15 @@ function AskAiScreen() {
               accessibilityLabel="AI에게 보낼 메시지"
               value={draft}
               onChangeText={setDraft}
-              placeholder={quote ? "이 부분에서 뭐가 헷갈려요?" : "궁금한 걸 물어보세요"}
+              placeholder={
+                quote
+                  ? "이 부분에서 뭐가 헷갈려요?"
+                  : mode === "hint"
+                    ? "어디서 막혔어요?"
+                    : mode === "why"
+                      ? "어떤 부분이 헷갈려요?"
+                      : "궁금한 걸 물어보세요"
+              }
               placeholderTextColor={colors.bandText2}
               multiline
               maxLength={500}
@@ -354,6 +416,10 @@ const s = StyleSheet.create({
   title: { ...type.title, fontSize: 22, lineHeight: 30, color: colors.ink },
   subtitle: { ...type.small, fontSize: 13, color: colors.bandText2 },
   thread: { padding: 20, gap: 12, flexGrow: 1 },
+  about: { borderRadius: 14, backgroundColor: "rgba(18,21,19,0.06)", padding: 16, gap: 6 },
+  aboutLabel: { ...type.label, color: colors.bandLabel },
+  aboutPrompt: { fontFamily: fonts.serif, fontSize: 18, lineHeight: 27, color: colors.ink },
+  aboutMeta: { ...type.small, color: colors.bandText2 },
   empty: { flexGrow: 1, justifyContent: "center", gap: 8, paddingVertical: 48 },
   emptyTitle: { fontFamily: fonts.serif, fontSize: 22, lineHeight: 32, color: colors.ink },
   emptyBody: { ...type.small, fontSize: 15, lineHeight: 23, color: colors.bandText2 },

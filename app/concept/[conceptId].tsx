@@ -4,14 +4,9 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Message, Screen } from "../../src/components/ui";
 import { useApp } from "../../src/platform/AppProvider";
-import { pieceState } from "../../src/domain/puzzle";
+import { resolutionOf } from "../../src/domain/puzzle";
 import { colors, fonts, type } from "../../src/theme/tokens";
 
-const pieceLabel = {
-  fitted: "맞춘 조각",
-  seen: "틈새에서 본 조각",
-  none: "아직 맞추지 않은 조각",
-};
 const levels = [
   "이것만 알아도 대충 알아요",
   "이것까지 알면 좋아요",
@@ -44,7 +39,7 @@ function SelectableBody({ text, onSelect }: { text: string; onSelect: (s: string
 
 export default function Concept() {
   const { conceptId } = useLocalSearchParams<{ conceptId: string }>();
-  const { snapshot } = useApp();
+  const { snapshot, now } = useApp();
   const router = useRouter();
   const [open, setOpen] = useState<boolean[]>([true, false, false]);
   const [selection, setSelection] = useState("");
@@ -71,7 +66,10 @@ export default function Concept() {
       <Screen>
         <View style={{ gap: 10 }}>
           <Text style={s.area}>
-            {concept.area} · {pieceLabel[pieceState(snapshot, concept.id)]}
+            {concept.area} · {(() => {
+              const r = resolutionOf(snapshot, concept.id, now);
+              return r.percent > 0 ? `해상도 ${r.percent}% · 반감기 ${r.halfLife}일` : "아직 맞추지 않은 조각";
+            })()}
           </Text>
           <Text accessibilityRole="header" style={s.title}>
             {concept.title}

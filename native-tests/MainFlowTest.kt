@@ -37,13 +37,17 @@ class MainFlowTest {
  @Test fun offlineLearningPersistsAfterRelaunch() {
    open()
    assertTrue("Onboarding did not open",device.wait(Until.hasObject(By.textContains("착각하는 앱")),30000));screenshot("onboarding")
-   find("다음").click();find("5문제 · 기본")
+   find("다음").click()
+   find("무엇을 공부할까요?");device.findObject(By.descStartsWith("정보처리기사 기초")).click()
+   find("5문제 · 기본",10000);screenshot("subject-installed")
    find("다음").click();find("잠금 화면에 카드를 놓을까요?")
+   find("나중에").click();find("AI 코치를 붙일까요?")
    find("나중에").click()
-   find("네트워크");screenshot("question")
-   find("요청한 자원을 서버에서 찾지 못했다").click()
+   // Without ChatGPT the first question is a random pick, so answer whatever comes first.
+   device.wait(Until.hasObject(By.descStartsWith("1번, ")),15000);screenshot("question")
+   device.findObject(By.descStartsWith("1번, ")).click()
    find("확인").click()
-   find("맞았어요");screenshot("answer")
+   assertTrue(device.wait(Until.hasObject(By.text("맞았어요")),5000) || device.hasObject(By.text("정답은")));screenshot("answer")
    find("다음").click()
    assertTrue("Daily count did not advance",device.wait(Until.hasObject(By.text("1 / 5")),10000))
    device.pressHome()
@@ -51,6 +55,6 @@ class MainFlowTest {
      .let { instrumentation.targetContext.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
    assertTrue("Progress lost after relaunch",device.wait(Until.hasObject(By.text("1 / 5")),15000))
    device.findObject(By.descStartsWith("퍼즐 보기")).click()
-   find("/ 60 조각");screenshot("puzzle")
+   find("평균 해상도");screenshot("puzzle")
  }
 }

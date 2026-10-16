@@ -318,3 +318,18 @@ test("V2 learners keep studying the information-processing basics after the V3 u
   expect(reopened.snapshot().settings.subjectId).toBe("info-basic");
   expect(reopened.snapshot().concepts).toHaveLength(60);
 });
+
+test("upgrading to V3 replays earlier answers into resolution", () => {
+  const s = repo.openSession("db-primary");
+  repo.submit(s.id, "a");
+  repo.ingestGapEvents([
+    { id: "old-gap", learnerId: repo.activeLearner, questionId: "net-http-ox", selectedOptionId: "o", answeredAt: now },
+  ]);
+  db.execSync(
+    "DROP TABLE plans; DROP TABLE knowledge_state; DROP TABLE subjects; PRAGMA user_version=4;",
+  );
+  const reopened = new LearningRepository(db, () => `test-${++id}`, () => now);
+  const k = reopened.snapshot().knowledge;
+  expect(k["db-primary"].r).toBe(20);
+  expect(k["net-http"].r).toBe(8);
+});

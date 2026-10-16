@@ -31,14 +31,14 @@ export const packs: Pack[] = [
   {
     id: "computer-1",
     title: "컴퓨터활용능력 1급",
-    subtitle: "곧 열려요",
+    subtitle: "스프레드시트·데이터베이스 실무",
     available: false,
     catalog: null,
   },
   {
     id: "toeic-words",
     title: "토익 필수 단어",
-    subtitle: "곧 열려요",
+    subtitle: "자주 나오는 단어와 표현",
     available: false,
     catalog: null,
   },

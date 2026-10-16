@@ -20,6 +20,7 @@ import { enableGap, mutateLearningWithGap } from "../src/services/gap/sync";
 import { useProfileModels } from "../src/services/ai/useProfileModels";
 import { dailyGoals, gapIntervals } from "../src/data/repositories/LearningRepository";
 import { colors, fonts, type } from "../src/theme/tokens";
+import { packOf } from "../src/data/content/packs";
 
 /** A system-style mock of the card that is on the lock screen right now. */
 function CardPreview({ card, hours }: { card: GapPreview; hours: string }) {
@@ -199,6 +200,11 @@ export default function Settings() {
     <Screen title="설정">
       <View>
         <SectionLabel>학습</SectionLabel>
+        <Row
+          label="과목"
+          value={packOf(settings.subjectId).title}
+          onPress={() => router.push("/subjects")}
+        />
         <Row
           label="하루에 풀 문제"
           last

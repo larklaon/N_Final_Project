@@ -103,6 +103,9 @@ export class LearningRepository {
       if (!this.meta("activeLearner"))
         this.setMeta("activeLearner", this.createLearner(null));
     });
+    // V2 history becomes V3 resolution once, so existing learners do not start from 0%.
+    if (version > 0 && version < 5)
+      db.withTransactionSync(() => this.replayKnowledge());
   }
   private meta(key: string) {
     return this.db.getFirstSync<{ value: string }>(
@@ -312,6 +315,21 @@ export class LearningRepository {
       .getAllSync<{ data: string }>("SELECT data FROM quizzes")
       .map((r) => JSON.parse(r.data) as Quiz);
     return this.allQuestions;
+  }
+  private replayKnowledge() {
+    const answers = [
+      ...this.db.getAllSync<{ learnerId: string; quizId: string; correct: number; answeredAt: number }>(
+        "SELECT learnerId,quizId,correct,answeredAt FROM attempts",
+      ),
+      ...this.db.getAllSync<{ learnerId: string; quizId: string; correct: number; answeredAt: number }>(
+        "SELECT learnerId,questionId AS quizId,correct,answeredAt FROM gap_events",
+      ),
+    ].sort((a, b) => a.answeredAt - b.answeredAt);
+    const byId = new Map(this.questions().map((q) => [q.id, q]));
+    for (const a of answers) {
+      const q = byId.get(a.quizId);
+      if (q) this.applyKnowledge(a.learnerId, q, a.correct === 1, a.answeredAt);
+    }
   }
   /** Every answer, in the app or on a gap surface, moves the knowledge it is tagged with. */
   private applyKnowledge(learner: string, q: Quiz, correct: boolean, at: number) {
