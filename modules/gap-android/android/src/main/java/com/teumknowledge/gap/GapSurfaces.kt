@@ -33,6 +33,11 @@ object GapSurfaces {
   const val ACTION_DISMISS = "com.teumknowledge.gap.DISMISS"
   const val ACTION_TICK = "com.teumknowledge.gap.TICK"
   private const val ACCENT = 0xFF3F5A4C.toInt()
+  /** Same as the app's mintDeep / danger: right answers deepen to mint, wrong ones are red. */
+  private const val RIGHT = 0xFF2E9E77.toInt()
+  private const val WRONG = 0xFFA53332.toInt()
+  private const val INK = 0xFF121513.toInt()
+  private fun verdictColor(a: GapAnswer) = if (a.correct) RIGHT else WRONG
 
   private fun minuteOfDay() = Calendar.getInstance().let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
 
@@ -84,10 +89,10 @@ object GapSurfaces {
   }
   private const val LOCK_LINE_EMS = 9.8
 
-  private fun verdictLine(verdict: String, note: String): CharSequence =
+  private fun verdictLine(verdict: String, note: String, color: Int): CharSequence =
     SpannableStringBuilder(verdict).apply {
       setSpan(StyleSpan(Typeface.BOLD), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-      setSpan(ForegroundColorSpan(ACCENT), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+      setSpan(ForegroundColorSpan(color), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
       append(" · ").append(note)
     }
 
@@ -169,11 +174,12 @@ object GapSurfaces {
 
   private fun bindResult(context: Context, v: RemoteViews, card: GapCard, a: GapAnswer, compact: Boolean) {
     v.setTextViewText(R.id.gap_result_title, resultTitle(card, a))
+    v.setTextColor(R.id.gap_result_title, verdictColor(a))
     // Collapsed: verdict and note share two lines; expanded: verdict above, note below.
     v.setViewVisibility(R.id.gap_result_title, if (compact) View.GONE else View.VISIBLE)
     v.setTextViewText(
       R.id.gap_result_feedback,
-      if (compact) verdictLine(resultTitle(card, a), collapsedNote(resultTitle(card, a), card)) else card.feedback,
+      if (compact) verdictLine(resultTitle(card, a), collapsedNote(resultTitle(card, a), card), verdictColor(a)) else card.feedback,
     )
     v.setInt(R.id.gap_result_feedback, "setMaxLines", if (compact) 2 else 4)
     v.setTextViewTextSize(R.id.gap_result_feedback, TypedValue.COMPLEX_UNIT_SP, if (compact) 13f else 15f)
@@ -229,6 +235,8 @@ object GapSurfaces {
     if (size == WidgetSize.LARGE) v.setTextViewTextSize(R.id.gap_widget_prompt, TypedValue.COMPLEX_UNIT_SP, 21f)
     v.setViewVisibility(R.id.gap_widget_next, View.GONE)
     v.setViewVisibility(R.id.gap_widget_feedback, View.GONE)
+    // Launchers reapply onto the same views; reset what the result state recolours.
+    v.setTextColor(R.id.gap_widget_prompt, INK)
     when (view) {
       is GapView.Hidden -> {
         if (!small) v.setTextViewText(R.id.gap_widget_area, "틈지식")
@@ -258,6 +266,7 @@ object GapSurfaces {
       is GapView.Result -> {
         if (!small) v.setTextViewText(R.id.gap_widget_area, view.card.area)
         v.setTextViewText(R.id.gap_widget_prompt, resultTitle(view.shown, view.answer))
+        v.setTextColor(R.id.gap_widget_prompt, verdictColor(view.answer))
         v.setTextViewText(R.id.gap_widget_feedback, view.shown.feedback)
         v.setInt(R.id.gap_widget_feedback, "setMaxLines", when (size) { WidgetSize.SMALL -> 1; WidgetSize.MEDIUM -> 4; WidgetSize.LARGE -> 8 })
         v.setViewVisibility(R.id.gap_widget_feedback, View.VISIBLE)
