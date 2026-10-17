@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
@@ -32,17 +33,37 @@ class LayoutTest {
    val font=c.resources.configuration.fontScale
    val density=c.resources.displayMetrics.density
    val minimum=ceil(17 * minOf(font,1.5f) * density).toInt()
-   val options=d.findObjects(By.descContains("번, "))
-   assertTrue("No answer options",options.isNotEmpty())
-   for(o in options) { val b=o.visibleBounds; assertTrue("Option too small: $b",b.height()>=minimum) }
+   // A partially visible option is expected in a ScrollView. Verify each option can
+   // actually be reached with a readable/tappable area, without submitting an answer.
+   val reached=mutableSetOf<String>()
+   val minimumTouch=ceil(48 * density).toInt()
+   for(step in 0..12) {
+     for(o in d.findObjects(By.descContains("번, "))) {
+       val b=o.visibleBounds
+       if(b.height()>=maxOf(minimum,minimumTouch)) reached.add(o.contentDescription)
+     }
+     if(reached.size>=4) break // Bundled application questions have four choices.
+     val scroll=d.findObject(By.scrollable(true)) ?: break
+     scroll.setGestureMargin((24*density).toInt())
+     if(!scroll.scroll(Direction.DOWN,0.55f)) {
+       for(o in d.findObjects(By.descContains("번, ")))
+         if(o.visibleBounds.height()>=maxOf(minimum,minimumTouch)) reached.add(o.contentDescription)
+       break
+     }
+     d.waitForIdle(500)
+   }
+   assertEquals("Every answer option must be reachable by scrolling",4,reached.size)
    // The confirm button must be reachable inside the screen, above the gesture area.
    val confirm=d.findObject(By.text("확인")) ?: d.findObject(By.text("다음"))
    assertNotNull("Missing primary action",confirm)
    val b=confirm!!.visibleBounds
    assertTrue("Primary action offscreen: $b",b.left>=0 && b.right<=d.displayWidth && b.bottom<=d.displayHeight && b.height()>=minimum)
    assertNotNull("Missing settings",d.findObject(By.desc("설정")))
-   d.takeScreenshot(File(c.getExternalFilesDir(null),"$name.png"))
-   d.dumpWindowHierarchy(File(c.getExternalFilesDir(null),"$name.xml"))
-   } finally { d.unfreezeRotation() }
+   } finally {
+     // Preserve the actual failing screen before instrumentation leaves the activity.
+     d.takeScreenshot(File(c.getExternalFilesDir(null),"$name.png"))
+     d.dumpWindowHierarchy(File(c.getExternalFilesDir(null),"$name.xml"))
+     d.unfreezeRotation()
+   }
  }
 }

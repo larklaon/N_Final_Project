@@ -2,6 +2,8 @@ import type { AiEvent } from "../../../modules/siwc-android";
 
 export function aiErrorMessage(event: AiEvent): string {
   const code = event.errorCode || event.code;
+  if (code === "response_busy")
+    return "다른 AI 요청을 처리하고 있어요. 잠시 뒤 다시 시도해 주세요.";
   if (
     code === "subscription_sharing_usage_limit_exceeded" ||
     code === "usage_limit" ||

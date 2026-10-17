@@ -33,8 +33,8 @@ object GapSurfaces {
   const val ACTION_DISMISS = "com.teumknowledge.gap.DISMISS"
   const val ACTION_TICK = "com.teumknowledge.gap.TICK"
   private const val ACCENT = 0xFF3F5A4C.toInt()
-  /** Same as the app's mintDeep / danger: right answers deepen to mint, wrong ones are red. */
-  private const val RIGHT = 0xFF2E9E77.toInt()
+  /** Same as the app's mintText / danger: right answers deepen to mint, wrong ones are red. */
+  private const val RIGHT = 0xFF207354.toInt()
   private const val WRONG = 0xFFA53332.toInt()
   private const val INK = 0xFF121513.toInt()
   private fun verdictColor(a: GapAnswer) = if (a.correct) RIGHT else WRONG

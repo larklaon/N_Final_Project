@@ -5,18 +5,29 @@ import type { LearningRepository } from "../../data/repositories/LearningReposit
 import { needsPlan, parsePlan, planInput, planInstructions, type Plan } from "../../domain/plan";
 
 /** Runs one Responses request and resolves with the completed text. */
-function complete(request: object, timeoutMs = 90_000): Promise<string> {
+function complete(request: object, signal: AbortSignal, timeoutMs = 90_000): Promise<string> {
   const gateway = getSiwc();
   return new Promise((resolve, reject) => {
     let requestId: string | null = null;
+    let settled = false;
     const early: AiEvent[] = [];
     let text = "";
+    const cancel = (id: string) => { void gateway.cancelResponse(id).catch(() => {}); };
     const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
       sub.remove();
+      signal.removeEventListener("abort", abort);
+      early.length = 0;
       fn();
     };
+    const abort = () => {
+      finish(() => reject(Error("plan_invalidated")));
+      if (requestId) cancel(requestId);
+    };
     const handle = (e: AiEvent) => {
+      if (settled) return;
       if (requestId === null) return void early.push(e);
       if (e.requestId !== requestId) return;
       if (e.type === "delta") text += e.text ?? "";
@@ -26,13 +37,16 @@ function complete(request: object, timeoutMs = 90_000): Promise<string> {
     };
     const sub = gateway.addListener("onResponse", handle);
     const timer = setTimeout(() => {
-      if (requestId) void gateway.cancelResponse(requestId);
       finish(() => reject(Error("plan_timeout")));
+      if (requestId) cancel(requestId);
     }, timeoutMs);
+    signal.addEventListener("abort", abort);
+    if (signal.aborted) return abort();
     gateway.startResponse(JSON.stringify(request)).then(
       (r) => {
         requestId = r.requestId;
-        // Completion can arrive before the start promise resolves.
+        // The native start promise can arrive after a reset, timeout or completion.
+        if (settled) return cancel(requestId);
         for (const e of early.splice(0)) handle(e);
       },
       (err) => finish(() => reject(err)),
@@ -46,7 +60,9 @@ export async function requestPlan(
   auth: AuthSnapshot,
   models: ModelChoice[],
   now = Date.now(),
+  signal?: AbortSignal,
 ): Promise<Plan> {
+  const scope = repo.learningScope;
   const snapshot = repo.snapshot();
   if (auth.status !== "ready" || !auth.profileId || !snapshot.settings.aiConsentAt)
     throw Error("not_ready");
@@ -60,23 +76,41 @@ export async function requestPlan(
   const input = [
     { role: "user" as const, content: JSON.stringify(planInput(snapshot, now, repo.plan())) },
   ];
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const text = await complete({
-      profileId: auth.profileId,
-      model,
-      instructions: planInstructions,
-      input,
-    });
-    try {
-      const plan = parsePlan(text, snapshot, now);
-      repo.savePlan(learner, subject, plan);
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const unsubscribe = repo.onScopeChange(abort);
+  signal?.addEventListener("abort", abort);
+  if (signal?.aborted) abort();
+  const assertCurrent = () => {
+    if (controller.signal.aborted || repo.learningScope !== scope || !repo.snapshot().settings.aiConsentAt)
+      throw Error("plan_invalidated");
+  };
+  try {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      assertCurrent();
+      const text = await complete({
+        profileId: auth.profileId,
+        model,
+        instructions: planInstructions,
+        input,
+      }, controller.signal);
+      assertCurrent();
+      let plan: Plan;
+      try {
+        plan = parsePlan(text, snapshot, now);
+      } catch (e) {
+        lastError = e;
+        continue; // Retry only malformed output, never a stale or refused save.
+      }
+      if (!repo.savePlan(learner, subject, plan, scope)) throw Error("plan_invalidated");
       return plan;
-    } catch (e) {
-      lastError = e;
     }
+    throw lastError;
+  } finally {
+    unsubscribe();
+    signal?.removeEventListener("abort", abort);
   }
-  throw lastError;
 }
 
 /**
@@ -93,25 +127,35 @@ export function usePlan(
   const [plan, setPlan] = useState<Plan | null>(() => repo.plan());
   const [planning, setPlanning] = useState(false);
   const lastTry = useRef(0);
+  const active = useRef<AbortController | null>(null);
+  useEffect(() => () => { active.current?.abort(); active.current = null; }, []);
   const ready = auth.status === "ready" && models.length > 0;
   const ensure = useCallback(
     (force = false) => {
       const current = repo.plan();
       const now = Date.now();
-      if (!ready || planning) return;
+      if (!ready || active.current) return;
       if (!force && !needsPlan(current, repo.snapshot(), now)) return;
       if (now - lastTry.current < 10 * 60_000) return;
       lastTry.current = now;
+      const controller = new AbortController();
+      const scope = repo.learningScope;
+      active.current = controller;
       setPlanning(true);
-      requestPlan(repo, auth, models)
+      requestPlan(repo, auth, models, now, controller.signal)
         .then((p) => {
+          if (active.current !== controller || repo.learningScope !== scope) return;
           setPlan(p);
           onSaved();
         })
         .catch(() => {})
-        .finally(() => setPlanning(false));
+        .finally(() => {
+          if (active.current !== controller) return;
+          active.current = null;
+          setPlanning(false);
+        });
     },
-    [repo, auth, models, ready, planning, onSaved],
+    [repo, auth, models, ready, onSaved],
   );
   useEffect(() => {
     const t = setTimeout(() => {

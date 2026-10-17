@@ -27,12 +27,21 @@ try:
   call('shell','wm','density',str(density))
   call('shell','settings','put','system','accelerometer_rotation','0')
   call('shell','settings','put','system','user_rotation',rotation)
+  # A crashed instrumentation process may never reach its screenshot finally block.
+  # Remove old captures first so a prior build's image cannot be mistaken for evidence.
+  for ext in ['png','xml']:
+   (out/(name+'.'+ext)).unlink(missing_ok=True)
+   call('shell','rm','-f',f'/sdcard/Android/data/com.teumknowledge.app/files/{name}.{ext}')
   log=call('shell','am','instrument','-w','-e','class','com.teumknowledge.app.LayoutTest','-e','captureName',name,'com.teumknowledge.app.test/androidx.test.runner.AndroidJUnitRunner')
   (out/(name+'.log')).write_text(log)
   print(name,log.strip(),flush=True)
-  assert 'OK (1 test)' in log,name
   for ext in ['png','xml']:
-   call('pull',f'/sdcard/Android/data/com.teumknowledge.app/files/{name}.{ext}',str(out/(name+'.'+ext)))
+   try:
+    call('pull',f'/sdcard/Android/data/com.teumknowledge.app/files/{name}.{ext}',str(out/(name+'.'+ext)))
+   except subprocess.CalledProcessError:
+    if 'OK (1 test)' in log: raise
+    print(f'{name}: no fresh {ext} capture (test process may have crashed)',flush=True)
+  assert 'OK (1 test)' in log,name
 finally:
  call('shell','am','force-stop','com.teumknowledge.app')
  call('shell','wm','density','reset')

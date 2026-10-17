@@ -53,7 +53,7 @@ jest.mock("../../../components/ui", () => {
     Small: Copy,
     Button,
     Choice: Button,
-    Message: Wrap,
+    Message: ({ text }: { text: string }) => <Text>{text}</Text>,
     IconButton: ({ label, onPress }: { label: string; onPress: () => void }) => (
       <Pressable accessibilityLabel={label} onPress={onPress} />
     ),
@@ -119,6 +119,7 @@ function context() {
     snapshot: base,
     repo: {
       activeLearner: "a",
+      learningScope: "scope-a",
       snapshot: () => base,
       chatMessages: () => [...chat],
       addChatMessage: (
@@ -212,4 +213,43 @@ test.each([
   const ui = render(<AuthReturn />);
   await act(async () => {});
   expect(ui.getByText(title)).toBeTruthy();
+});
+
+
+test("busy start keeps the user's question and never adopts the plan response", async () => {
+  const ctx = context();
+  jest.mocked(useApp).mockReturnValue(ctx);
+  let listener: (e: AiEvent) => void = () => {};
+  const startResponse = jest.fn().mockRejectedValue(Object.assign(Error("native wrapper"), { code: "response_busy" }));
+  const cancelResponse = jest.fn();
+  jest.mocked(getSiwc).mockReturnValue({ startResponse, cancelResponse,
+    addListener: (_: string, cb: typeof listener) => { listener = cb; return { remove: jest.fn() }; },
+  } as unknown as ReturnType<typeof getSiwc>);
+  const ui = render(<AiExplanation />);
+  fireEvent.changeText(ui.getByLabelText("AI에게 보낼 메시지"), "힌트를 줘");
+  fireEvent.press(ui.getByLabelText("보내기"));
+  await waitFor(() => expect(ui.getByText("다른 AI 요청을 처리하고 있어요. 잠시 뒤 다시 시도해 주세요.")).toBeTruthy());
+  await act(async () => listener({ requestId: "plan-id", type: "completed", text: '{"days":[]}' }));
+  expect(ctx.repo.chatMessages("c").map((m) => m.role)).toEqual(["user"]);
+  expect(cancelResponse).not.toHaveBeenCalled();
+});
+
+test("a completed chat event after a reset cannot restore erased history before rerender", async () => {
+  const ctx = context();
+  jest.mocked(useApp).mockReturnValue(ctx);
+  let listener: (e: AiEvent) => void = () => {};
+  const cancelResponse = jest.fn();
+  jest.mocked(getSiwc).mockReturnValue({
+    startResponse: jest.fn(async () => ({ requestId: "chat-id" })), cancelResponse,
+    addListener: (_: string, cb: typeof listener) => { listener = cb; return { remove: jest.fn() }; },
+  } as unknown as ReturnType<typeof getSiwc>);
+  const ui = render(<AiExplanation />);
+  fireEvent.changeText(ui.getByLabelText("AI에게 보낼 메시지"), "설명해 줘");
+  fireEvent.press(ui.getByLabelText("보내기"));
+  await act(async () => {});
+  Object.defineProperty(ctx.repo, "learningScope", { value: "scope-reset", configurable: true });
+  await act(async () => listener({ requestId: "chat-id", type: "completed", text: "stale explanation" }));
+  expect(ctx.repo.chatMessages("c").some((m) => m.role === "assistant")).toBe(false);
+  ui.rerender(<AiExplanation />);
+  expect(cancelResponse).toHaveBeenCalledWith("chat-id");
 });

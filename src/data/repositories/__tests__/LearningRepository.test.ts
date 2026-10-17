@@ -337,3 +337,43 @@ test("upgrading to V3 replays earlier answers into resolution", () => {
   expect(k["db-primary"].r).toBe(20);
   expect(k["net-http"].r).toBe(8);
 });
+
+test("a plan captured before reset is refused by storage even without a cancellation listener", () => {
+  repo.installSubject("info-basic");
+  const learner = repo.activeLearner;
+  const scope = repo.learningScope;
+  const plan = { createdAt: now, summary: "old", days: [] };
+  expect(repo.savePlan(learner, "info-basic", plan, scope)).toBe(true);
+  repo.resetCurrent();
+  expect(repo.savePlan(learner, "info-basic", plan, scope)).toBe(false);
+  expect(repo.plan()).toBeNull();
+  expect(repo.savePlan(learner, "info-basic", plan, repo.learningScope)).toBe(true);
+  const reopened = new LearningRepository(db, () => `test-${++id}`, () => now);
+  expect(reopened.learningScope).toBe(repo.learningScope);
+});
+
+test("ordinary grading and selecting the same profile keep the ownership scope", () => {
+  repo.selectProfile("p");
+  const scope = repo.learningScope;
+  const session = repo.openSession("db-primary");
+  repo.submit(session.id, repo.quiz(session.quizId).correctOptionId);
+  repo.selectProfile("p");
+  expect(repo.learningScope).toBe(scope);
+});
+
+test("a failed reset preserves both the plan scope and listeners until a committed reset", () => {
+  const scope = repo.learningScope;
+  const changed = jest.fn();
+  const unsubscribe = repo.onScopeChange(changed);
+  db.execSync("CREATE TRIGGER fail_reset BEFORE DELETE ON plans BEGIN SELECT RAISE(ABORT, 'fixture failure'); END;");
+  repo.savePlan(repo.activeLearner, "info-basic", { createdAt: now, summary: "old", days: [] }, scope);
+  expect(() => repo.resetCurrent()).toThrow("fixture failure");
+  expect(repo.learningScope).toBe(scope);
+  expect(changed).not.toHaveBeenCalled();
+  db.execSync("DROP TRIGGER fail_reset;");
+  repo.resetCurrent();
+  expect(changed).toHaveBeenCalledTimes(1);
+  unsubscribe();
+  repo.resetCurrent();
+  expect(changed).toHaveBeenCalledTimes(1);
+});

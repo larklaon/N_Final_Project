@@ -31,8 +31,8 @@ const suggestions = ["쉽게 다시 설명해 줘", "예시로 설명해 줘", "
 const HISTORY_TURNS = 12;
 
 export default function AskAi() {
-  const { snapshot } = useApp();
-  return <AskAiScreen key={snapshot.learnerId} />;
+  const { repo } = useApp();
+  return <AskAiScreen key={repo.learningScope} />;
 }
 
 function AskAiScreen() {
@@ -67,6 +67,7 @@ function AskAiScreen() {
   const active = useRef<{
     requestId: string | null;
     learner: string;
+    scope: string;
     buffer: AiEvent[];
   } | null>(null);
   const mounted = useRef(true);
@@ -106,6 +107,7 @@ function AskAiScreen() {
       if (
         a.requestId !== event.requestId ||
         a.learner !== repo.activeLearner ||
+        a.scope !== repo.learningScope ||
         !mounted.current
       )
         return;
@@ -154,7 +156,7 @@ function AskAiScreen() {
     setError("");
     setFailed(false);
     setStreaming("");
-    const a = { requestId: null as string | null, learner: repo.activeLearner, buffer: [] as AiEvent[] };
+    const a = { requestId: null as string | null, learner: repo.activeLearner, scope: repo.learningScope, buffer: [] as AiEvent[] };
     active.current = a;
     try {
       let current = repo.snapshot();
@@ -198,7 +200,7 @@ function AskAiScreen() {
       const result = await getSiwc().startResponse(
         JSON.stringify({ profileId: auth.profileId, model, instructions: chatInstructions, input }),
       );
-      if (active.current !== a || !mounted.current) {
+      if (active.current !== a || !mounted.current || a.scope !== repo.learningScope) {
         void getSiwc().cancelResponse(result.requestId);
         return;
       }
@@ -210,7 +212,10 @@ function AskAiScreen() {
         active.current = null;
         setStreaming(null);
         setFailed(true);
-        setError(e instanceof Error ? e.message : "답을 받지 못했어요.");
+        const code = e && typeof e === "object" && "code" in e ? e.code : null;
+        setError(code === "response_busy"
+          ? aiErrorMessage({ requestId: "", type: "failed", code })
+          : e instanceof Error ? e.message : "답을 받지 못했어요.");
       }
     }
   }

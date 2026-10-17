@@ -164,7 +164,9 @@ class SiwcManager private constructor(private val context: Context) {
  }
  fun models(id: String): List<Map<String,String>> = resources.models(id)
  fun startResponse(raw: String): Map<String,String> = synchronized(registry.lock) {
-   responseId?.let { return mapOf("requestId" to it) }
+   if (responseId != null) throw expo.modules.kotlin.exception.CodedException(
+     "response_busy", "다른 AI 요청을 처리하고 있어요. 잠시 뒤 다시 시도해 주세요.", null
+   )
    val q=JSONObject(raw);require(q.getString("instructions").length<=16000 && q.getJSONArray("input").toString().length<=24000)
    val id=UUID.randomUUID().toString();responseId=id
    io.execute {

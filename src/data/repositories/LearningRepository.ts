@@ -48,6 +48,22 @@ export const defaultSettings: Settings = {
   planWelcomeDismissed: false,
 };
 export class LearningRepository {
+  private scopeListeners = new Set<() => void>();
+  /** Changes only at learning ownership boundaries, not for ordinary answers/settings. */
+  get learningScope() {
+    return this.meta("learningScope") ?? "initial";
+  }
+  onScopeChange(listener: () => void) {
+    this.scopeListeners.add(listener);
+    return () => { this.scopeListeners.delete(listener); };
+  }
+  private advanceScope() {
+    this.setMeta("learningScope", this.uuid());
+  }
+  private notifyScopeChange(previous: string) {
+    if (previous !== this.learningScope)
+      for (const listener of this.scopeListeners) listener();
+  }
   constructor(
     private db: Db,
     private uuid: () => string,
@@ -197,6 +213,7 @@ export class LearningRepository {
   }
   updateSettings(patch: Partial<Settings>) {
     const learner = this.activeLearner;
+    const previousScope = this.learningScope;
     const old = this.snapshot().settings;
     const settings = { ...old, ...patch };
     if (!dailyGoals.includes(settings.dailyGoal))
@@ -216,8 +233,10 @@ export class LearningRepository {
         JSON.stringify(settings),
         learner,
       );
+      if (settings.subjectId !== old.subjectId) this.advanceScope();
       this.touch(learner);
     });
+    this.notifyScopeChange(previousScope);
   }
   private touch(learner: string) {
     this.db.runSync(
@@ -230,7 +249,12 @@ export class LearningRepository {
     );
   }
   selectProfile(profileId: string | null) {
+    const previousScope = this.learningScope;
+    const previousProfile = this.db.getFirstSync<{ profileId: string | null }>(
+      "SELECT profileId FROM learners WHERE id=?", this.activeLearner,
+    )!.profileId;
     this.db.withTransactionSync(() => {
+      if (previousProfile !== profileId) this.advanceScope();
       let learner = this.db.getFirstSync<{ id: string }>(
         "SELECT id FROM learners WHERE profileId IS ?",
         profileId,
@@ -262,6 +286,7 @@ export class LearningRepository {
       this.setMeta("activeLearner", learner);
       this.touch(learner);
     });
+    this.notifyScopeChange(previousScope);
   }
   quiz(id: string): Quiz {
     const row = this.db.getFirstSync<{ data: string }>(
@@ -307,9 +332,9 @@ export class LearningRepository {
     );
     return row ? (JSON.parse(row.data) as Plan) : null;
   }
-  /** Ignored when the learner or subject changed while the coach was answering. */
-  savePlan(learner: string, subjectId: string, plan: Plan) {
-    if (learner !== this.activeLearner) return false;
+  /** Rejects stale work even after switching away and back, or resetting the same learner. */
+  savePlan(learner: string, subjectId: string, plan: Plan, scope: string) {
+    if (scope !== this.learningScope || learner !== this.activeLearner) return false;
     if (packOf(this.snapshot().settings.subjectId).id !== subjectId) return false;
     this.db.withTransactionSync(() => {
       this.db.runSync(
@@ -718,6 +743,7 @@ export class LearningRepository {
     return result.changes === 1;
   }
   resetCurrent() {
+    const previousScope = this.learningScope;
     const learner = this.activeLearner;
     this.db.withTransactionSync(() => {
       for (const table of [
@@ -742,16 +768,21 @@ export class LearningRepository {
         JSON.stringify(settings),
         learner,
       );
+      this.advanceScope();
       this.touch(learner);
     });
+    this.notifyScopeChange(previousScope);
   }
   eraseAll() {
+    const previousScope = this.learningScope;
     this.db.withTransactionSync(() => {
       this.db.runSync("DELETE FROM learners");
       this.db.runSync("DELETE FROM app_meta");
       this.db.runSync("DELETE FROM consumed_notification_events");
       this.setMeta("activeLearner", this.createLearner(null));
+      this.advanceScope();
     });
+    this.notifyScopeChange(previousScope);
   }
 }
 

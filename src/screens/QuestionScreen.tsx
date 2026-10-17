@@ -87,7 +87,6 @@ function useGapTransition() {
 }
 
 type Local = {
-  learner: string;
   /** The answered session stays on screen until "다음". */
   pinned: Session | null;
   selected: string;
@@ -141,26 +140,24 @@ function SeenPiece({
 }
 
 export function QuestionScreen() {
+  const { repo } = useApp();
+  return <ScopedQuestionScreen key={repo.learningScope} />;
+}
+
+function ScopedQuestionScreen() {
   const { repo, snapshot, refresh, now, auth, refreshAuth } = useApp();
   const router = useRouter();
   const { open, overlay } = useGapTransition();
   const { models } = useProfileModels(auth, refreshAuth);
   const { plan, ensure } = usePlan(repo, auth, models, snapshot.memoryRevision, refresh);
   const canAsk = auth.status === "ready";
-  const learner = snapshot.learnerId;
-  const [stored, setLocal] = useState<Local>({
-    learner,
+  const [local, setLocal] = useState<Local>({
     pinned: null,
     selected: "",
     extra: false,
     error: "",
   });
-  // A different learner (profile switch, reset) starts fresh.
-  const local: Local =
-    stored.learner === learner
-      ? stored
-      : { learner, pinned: null, selected: "", extra: false, error: "" };
-  const update = (patch: Partial<Local>) => setLocal({ ...local, ...patch });
+  const update = (patch: Partial<Local>) => setLocal((current) => ({ ...current, ...patch }));
   const { pinned, selected, extra } = local;
   const target = pinned ? null : planConcept(snapshot, now, plan, extra);
   // openSession is idempotent for an unanswered occurrence, so deriving it is safe.
@@ -350,7 +347,7 @@ export function QuestionScreen() {
         ) : answered.correct ? (
           <Band slant={4}>
             <View style={s.verdict} accessibilityLiveRegion="polite">
-              <Ionicons name="checkmark-circle" size={22} color={colors.mintDeep} accessible={false} />
+              <Ionicons name="checkmark-circle" size={22} color={colors.mintText} accessible={false} />
               <Text style={[s.verdictText, s.verdictRight]}>맞았어요</Text>
             </View>
             <Text style={[answerStyle, s.bandText]}>{correctText}</Text>
@@ -414,6 +411,6 @@ const s = StyleSheet.create({
   seenTitle: { ...type.option, fontFamily: fonts.semibold, color: colors.inkText },
   seenGo: { ...type.small, fontSize: 13, color: colors.inkSoft },
   verdictText: { ...type.small, fontFamily: fonts.semibold, color: colors.bandLabel },
-  verdictRight: { color: colors.mintDeep },
+  verdictRight: { color: colors.mintText },
   chosen: { ...type.small, color: colors.bandText2 },
 });
