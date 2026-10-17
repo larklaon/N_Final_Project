@@ -3,6 +3,8 @@ package com.teumknowledge.siwc
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.AtomicFile
+import java.io.File
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -19,7 +21,8 @@ class SiwcManager private constructor(private val context: Context) {
    fun get(context: Context): SiwcManager = instance ?: synchronized(this) { instance ?: SiwcManager(context.applicationContext).also { instance=it } }
  }
  private val registry=SessionRegistry(Vault(context))
- private val usage=UsageStore(context)
+ // Remove only the retired local counters, including any AtomicFile backup. Auth and learning stay intact.
+ init { AtomicFile(File(context.noBackupFilesDir,"siwc-usage.json")).delete() }
  private val io=Executors.newCachedThreadPool()
  private val http=OkHttpClient.Builder().connectTimeout(10,TimeUnit.SECONDS).readTimeout(30,TimeUnit.SECONDS).callTimeout(25,TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build()
  @Volatile var emit: ((Map<String,Any>)->Unit)?=null
@@ -160,10 +163,6 @@ class SiwcManager private constructor(private val context: Context) {
    return mapOf("revoked" to revoked)
  }
  fun models(id: String): List<Map<String,String>> = resources.models(id)
- fun usageSummary(id: String): Map<String,Any> = synchronized(registry.lock) {
-   registry.read { credential(it,id) }
-   usage.summary(id)
- }
  fun startResponse(raw: String): Map<String,String> = synchronized(registry.lock) {
    responseId?.let { return mapOf("requestId" to it) }
    val q=JSONObject(raw);require(q.getString("instructions").length<=16000 && q.getJSONArray("input").toString().length<=24000)
@@ -173,9 +172,7 @@ class SiwcManager private constructor(private val context: Context) {
        val body=JSONObject().put("model",q.getString("model")).put("instructions",q.getString("instructions"))
          .put("input",q.getJSONArray("input")).put("store",false).put("stream",true)
        resources.response(q.getString("profileId"),id,body.toString().toRequestBody("application/json".toMediaType()),{ responseId==id }) { res ->
-         val acc=ResponseAccumulator(onUsage={ counts -> synchronized(registry.lock) {
-           if(responseId==id) usage.record(id,q.getString("profileId"),counts)
-         } }) { kind,text -> if(responseId==id) emit?.invoke(mapOf("requestId" to id,"type" to kind,(if(kind=="failed") "code" else "text") to text)) }
+         val acc=ResponseAccumulator { kind,text -> if(responseId==id) emit?.invoke(mapOf("requestId" to id,"type" to kind,(if(kind=="failed") "code" else "text") to text)) }
          val reader=res.body?.source() ?: error("empty_body");val data=StringBuilder()
          while(!reader.exhausted() && !acc.terminal) {
            val line=reader.readUtf8LineStrict(65536)
@@ -196,5 +193,5 @@ class SiwcManager private constructor(private val context: Context) {
    responseId=null;registry.cancelCalls(current)
    emit?.invoke(mapOf("requestId" to current,"type" to "cancelled"))
  }
- fun eraseAll() = synchronized(registry.lock) { cancelResponse();cancelAuth();registry.erase();usage.erase();authMessage=null;authOutcome=null }
+ fun eraseAll() = synchronized(registry.lock) { cancelResponse();cancelAuth();registry.erase();authMessage=null;authOutcome=null }
 }

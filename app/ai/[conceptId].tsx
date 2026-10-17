@@ -22,6 +22,7 @@ import {
 } from "../../src/services/ai/context";
 import { aiErrorMessage } from "../../src/services/ai/errors";
 import { useProfileModels } from "../../src/services/ai/useProfileModels";
+import { openSubscriptionUsage } from "../../src/services/ai/subscriptionUsage";
 import type { ChatMessage } from "../../src/domain/types";
 import { colors, fonts, type } from "../../src/theme/tokens";
 
@@ -326,9 +327,10 @@ function AskAiScreen() {
         </View>
       ) : (
         <View style={s.composer}>
-          <Pressable accessibilityRole="button" accessibilityLabel="ChatGPT 플랜 사용 중, AI 사용량 보기"
-            onPress={() => router.push("/usage")} style={{ minHeight: 48, justifyContent: "center" }}>
-            <Text style={{ ...type.small, color: colors.bandText2 }}>ChatGPT 플랜 사용 중 · 사용량 보기</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="ChatGPT 플랜 사용 중, 구독 사용량 보기"
+            disabled={busy} accessibilityState={{ disabled: busy }}
+            onPress={() => void openSubscriptionUsage()} style={{ minHeight: 48, justifyContent: "center", opacity: busy ? 0.5 : 1 }}>
+            <Text style={{ ...type.small, color: colors.bandText2 }}>ChatGPT 플랜 사용 중 · 구독 사용량</Text>
           </Pressable>
           {(messages.length === 0 || !!question) && !quote && !busy && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>

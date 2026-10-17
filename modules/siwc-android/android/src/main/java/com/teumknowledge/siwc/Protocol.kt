@@ -38,7 +38,7 @@ object Protocol {
 }
 
 /** Only a completed terminal event can commit output. EOF, [DONE] and partial text are not success. */
-class ResponseAccumulator(private val onUsage: (JSONObject?) -> Unit = {}, private val emit: (String, String) -> Unit) {
+class ResponseAccumulator(private val emit: (String, String) -> Unit) {
  private val output = StringBuilder()
  var terminal = false; private set
  fun frame(data: String) {
@@ -52,7 +52,7 @@ class ResponseAccumulator(private val onUsage: (JSONObject?) -> Unit = {}, priva
      }
      "response.completed" -> {
        require(output.isNotBlank()) { "empty_response" }
-       terminal = true; onUsage(json.optJSONObject("response")?.optJSONObject("usage")); emit("completed", output.toString())
+       terminal = true; emit("completed", output.toString())
      }
      "response.failed", "response.incomplete", "error" -> {
        terminal = true

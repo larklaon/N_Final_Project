@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useApp } from "../../src/platform/AppProvider";
 import type { AuthSnapshot } from "../../modules/siwc-android";
 import { Screen, Heading, Body, Button, Row } from "../../src/components/ui";
+import { openSubscriptionUsage } from "../../src/services/ai/subscriptionUsage";
 
 function result(auth: AuthSnapshot) {
   if (auth.status === "authorizing")
@@ -61,7 +62,7 @@ export default function AuthReturn() {
         label={auth.status === "ready" ? "학습 시작하기" : "설정으로 돌아가기"}
         onPress={() => router.replace(auth.status === "ready" ? "/" : "/settings")}
       />
-      {auth.status === "ready" && <Row label="AI 사용량 보기" onPress={() => router.replace("/usage")} last />}
+      {auth.status === "ready" && <Row label="구독 사용량 보기" onPress={() => void openSubscriptionUsage()} last />}
     </Screen>
   );
 }

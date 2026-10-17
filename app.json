@@ -43,7 +43,8 @@
           ]
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-web-browser"
     ],
     "scheme": "teumknowledge",
     "platforms": [

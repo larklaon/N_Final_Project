@@ -18,6 +18,7 @@ import { getSiwc } from "../modules/siwc-android";
 import { getGap, type GapPreview } from "../modules/gap-android";
 import { enableGap, mutateLearningWithGap } from "../src/services/gap/sync";
 import { useProfileModels } from "../src/services/ai/useProfileModels";
+import { openSubscriptionUsage } from "../src/services/ai/subscriptionUsage";
 import { dailyGoals, gapIntervals } from "../src/data/repositories/LearningRepository";
 import { colors, fonts, type } from "../src/theme/tokens";
 import { packOf } from "../src/data/content/packs";
@@ -392,9 +393,9 @@ export default function Settings() {
             }
           />
           <Row
-            label="AI 사용량"
-            sub="이 기기의 응답 수·토큰 사용 기록"
-            onPress={() => router.push("/usage")}
+            label="구독 사용량"
+            sub="ChatGPT 공식 페이지 · 브라우저에 로그인된 계정 기준"
+            onPress={() => void openSubscriptionUsage()}
             last={!auth.profileId}
           />
           {auth.profileId && (

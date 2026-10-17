@@ -18,14 +18,6 @@ export type AuthSnapshot = {
   authOutcome?: "succeeded" | "failed" | "cancelled";
 };
 export type ModelChoice = { slug: string; displayName: string };
-/** This device's completed responses; not the ChatGPT subscription quota. */
-export type UsageSummary = {
-  todayCompleted: number;
-  completed: number;
-  measured: number;
-  inputTokens: number;
-  outputTokens: number;
-};
 export type AiEvent = {
   requestId: string;
   type: "delta" | "completed" | "failed" | "cancelled";
@@ -54,7 +46,6 @@ export interface SiwcGateway {
   selectProfile(profileId: string | null): Promise<AuthSnapshot>;
   signOut(profileId: string): Promise<{ revoked: boolean }>;
   listModels(profileId: string): Promise<ModelChoice[]>;
-  getUsage(profileId: string): Promise<UsageSummary>;
   startResponse(request: string): Promise<{ requestId: string }>;
   cancelResponse(requestId: string): Promise<void>;
   eraseAll(): Promise<void>;
