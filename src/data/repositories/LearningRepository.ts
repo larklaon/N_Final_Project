@@ -271,6 +271,30 @@ export class LearningRepository {
     if (!row) throw Error("문제를 찾지 못했어요.");
     return JSON.parse(row.data);
   }
+  /** The last answer given to this piece on the lock screen or widget, with the question asked. */
+  lastGapAnswer(
+    conceptId: string,
+    learnerId = this.activeLearner,
+  ): { quiz: Quiz; selectedOptionId: string; correct: boolean; answeredAt: number } | null {
+    const row = this.db.getFirstSync<{
+      questionId: string;
+      selectedOptionId: string;
+      correct: number;
+      answeredAt: number;
+    }>(
+      "SELECT questionId,selectedOptionId,correct,answeredAt FROM gap_events WHERE learnerId=? AND conceptId=? ORDER BY answeredAt DESC LIMIT 1",
+      learnerId,
+      conceptId,
+    );
+    const quiz = row && this.questionIndex().get(row.questionId);
+    if (!row || !quiz) return null;
+    return {
+      quiz,
+      selectedOptionId: row.selectedOptionId,
+      correct: row.correct === 1,
+      answeredAt: row.answeredAt,
+    };
+  }
   plan(learnerId = this.activeLearner): Plan | null {
     const subject = packOf(this.snapshot(learnerId).settings.subjectId).id;
     const row = this.db.getFirstSync<{ data: string }>(

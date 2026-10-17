@@ -94,6 +94,51 @@ type Local = {
   error: string;
 };
 
+/**
+ * The gap piece this question leaned on: when it was seen, how it went then, and a way
+ * to step aside and try that card again.
+ */
+function SeenPiece({
+  when,
+  title,
+  past,
+  onPress,
+}: {
+  when: string;
+  title: string;
+  past: boolean | null;
+  onPress: () => void;
+}) {
+  const result = past === null ? "" : past ? "맞혔어요" : "틀렸어요";
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${when} 스친 조각 ${title}${result && `, 그때 ${result}`}. 다시 풀기`}
+      onPress={onPress}
+      style={({ pressed }) => [s.seen, pressed && { opacity: 0.7 }]}
+    >
+      <Ionicons name="eye-outline" size={18} color={colors.inkMuted} accessible={false} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={s.seenMeta}>
+          {when} 스친 조각
+          {!!result && (
+            <Text style={{ color: past ? colors.band : colors.dangerOnInk }}>
+              {"  "}
+              {past ? "✓ " : "✕ "}
+              {result}
+            </Text>
+          )}
+        </Text>
+        <Text style={s.seenTitle} numberOfLines={1}>
+          {title}
+        </Text>
+      </View>
+      <Text style={s.seenGo}>다시 풀기</Text>
+      <Ionicons name="chevron-forward" size={16} color={colors.inkSoft} accessible={false} />
+    </Pressable>
+  );
+}
+
 export function QuestionScreen() {
   const { repo, snapshot, refresh, now, auth, refreshAuth } = useApp();
   const router = useRouter();
@@ -336,10 +381,14 @@ export function QuestionScreen() {
           </Band>
         )}
         {used && (
-          <DarkNote icon="eye-outline">
-            {whenSeen(used.lastSeenAt, now)} 스친 조각{" "}
-            <Text style={{ color: colors.inkText }}>&apos;{used.title}&apos;</Text>
-          </DarkNote>
+          <SeenPiece
+            when={whenSeen(used.lastSeenAt, now)}
+            title={used.title}
+            past={repo.lastGapAnswer(used.conceptId)?.correct ?? null}
+            onPress={() =>
+              router.push({ pathname: "/revisit/[conceptId]", params: { conceptId: used.conceptId } })
+            }
+          />
         )}
         {!!error && <DarkNote icon="alert-circle-outline">{error}</DarkNote>}
       </DarkScreen>
@@ -360,6 +409,21 @@ const s = StyleSheet.create({
   headerText: { ...type.small, fontSize: 13, color: colors.inkMuted },
   bandText: { color: colors.ink },
   verdict: { flexDirection: "row", alignItems: "center", gap: 8 },
+  seen: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 64,
+    marginHorizontal: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.inkLine,
+  },
+  seenMeta: { ...type.small, fontSize: 13, color: colors.inkMuted },
+  seenTitle: { ...type.option, fontFamily: fonts.semibold, color: colors.inkText },
+  seenGo: { ...type.small, fontSize: 13, color: colors.inkSoft },
   verdictText: { ...type.small, fontFamily: fonts.semibold, color: colors.bandLabel },
   chosen: { ...type.small, color: colors.bandText2 },
   askBar: {

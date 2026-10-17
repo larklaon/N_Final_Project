@@ -17,6 +17,11 @@ export default function Layout() {
         <Stack.Screen name="index" options={{ contentStyle: { backgroundColor: colors.ink } }} />
         {/* Asking about a question slides up over it, like a sheet. */}
         <Stack.Screen name="ai/[conceptId]" options={{ animation: "slide_from_bottom" }} />
+        {/* Trying an earlier card again is a short detour on the dark ground. */}
+        <Stack.Screen
+          name="revisit/[conceptId]"
+          options={{ animation: "slide_from_bottom", contentStyle: { backgroundColor: colors.ink } }}
+        />
       </Stack>
     </AppProvider>
   );

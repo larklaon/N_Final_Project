@@ -2,7 +2,7 @@ import { database } from "../../data/repositories/__tests__/database";
 import { LearningRepository } from "../../data/repositories/LearningRepository";
 import { advanceGap, buildDeck, withinWindow } from "../gap";
 import { DAY } from "../review";
-import { cue, termId } from "../term";
+import { cue, termId, termQuestion } from "../term";
 
 const now = Date.UTC(2026, 9, 15, 12);
 function setup() {
@@ -87,6 +87,23 @@ test("a widget term answer is ingested and moves that piece", () => {
   expect(s.gapProgress["net-tcp"]).toMatchObject({ seen: 1, correct: 1 });
   expect(s.gapProgress["net-udp"]).toBeUndefined();
   expect(s.knowledge["net-tcp"].r).toBeGreaterThan(0);
+});
+
+test("the last gap answer for a piece comes back with its question, term ones included", () => {
+  const repo = setup();
+  const learner = repo.activeLearner;
+  expect(repo.lastGapAnswer("net-tcp")).toBeNull();
+  const concepts = repo.snapshot().concepts;
+  const term = termQuestion(concepts.find((c) => c.id === "net-tcp")!, concepts)!;
+  const wrong = term.options.find((o) => o.id !== "net-tcp")!.id;
+  repo.ingestGapEvents([
+    { id: "l1", learnerId: learner, questionId: "net-tcp-ox", selectedOptionId: repo.quiz("net-tcp-ox").correctOptionId, answeredAt: now - DAY },
+    { id: "l2", learnerId: learner, questionId: termId("net-tcp"), selectedOptionId: wrong, answeredAt: now },
+  ]);
+  const last = repo.lastGapAnswer("net-tcp")!;
+  expect(last).toMatchObject({ selectedOptionId: wrong, correct: false, answeredAt: now });
+  expect(last.quiz.id).toBe(termId("net-tcp"));
+  expect(last.quiz.options).toHaveLength(4);
 });
 
 test("term cues hide the term behind 이것", () => {

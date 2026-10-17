@@ -12,6 +12,8 @@ export const colors = {
   bandFaint: "rgba(18,21,19,0.07)",
   bandLine: "rgba(18,21,19,0.10)",
   danger: "#A53332",
+  /** Danger readable on the ink ground. */
+  dangerOnInk: "#E3907F",
 } as const;
 /** Android embeds fonts by file name (expo-font config plugin). */
 export const fonts = {
