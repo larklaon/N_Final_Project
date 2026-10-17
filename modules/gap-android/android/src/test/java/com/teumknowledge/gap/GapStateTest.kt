@@ -156,4 +156,21 @@ class GapStateTest {
     assertEquals(GapView.Hidden, s.view(true, 9 * 60))
     assertTrue(s.view(false, 9 * 60) is GapView.Question)
   }
+
+  @Test fun collapsedCardUsesTheShortWordingWhenThereIsOne() {
+    val deck = JSONArray().put(card(0).put("short", "짧은 문장")).put(card(1))
+    val s = GapState().apply { configure(config(0).put("deck", deck), now) }
+    assertEquals("짧은 문장", s.current()!!.collapsedPrompt)
+    assertEquals("문제0", s.current()!!.prompt)
+    s.advance(now)
+    assertEquals("문제1", s.current()!!.collapsedPrompt)
+  }
+
+  @Test fun collapsedResultFallsBackToThePieceNameWhenTheNoteIsLong() {
+    val c = GapState.parseCard(card(0).put("conceptTitle", "SQL 인젝션"))
+    assertEquals("한 줄 해설", GapSurfaces.collapsedNote("맞았어요", c))
+    val long = GapState.parseCard(card(0).put("conceptTitle", "SQL 인젝션")
+      .put("feedback", "SQL 인젝션은 입력이 SQL 명령의 일부로 해석되어 의도와 다른 쿼리가 실행되는 문제예요."))
+    assertEquals("SQL 인젝션", GapSurfaces.collapsedNote("맞았어요", long))
+  }
 }

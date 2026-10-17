@@ -49,6 +49,8 @@ export type GapVariant = {
 
 export type GapCard = {
   cardId: string;
+  /** What the collapsed lock-screen card shows; the expanded card shows the full prompt. */
+  short?: string;
   learnerId: string;
   questionId: string;
   conceptId: string;
@@ -78,15 +80,13 @@ function variant(q: Quiz, concept: Concept, seed: string): GapVariant {
   };
 }
 
-function pickQuestion(
-  concept: Concept,
-  progress: GapProgress | undefined,
-  byConcept: Map<string, Quiz[]>,
-) {
+/**
+ * The lock screen asks O/X: it fits two lines beside the keys and needs no expanding.
+ * Choices and term questions live on the widget and in the app.
+ */
+function pickQuestion(concept: Concept, byConcept: Map<string, Quiz[]>) {
   const own = byConcept.get(concept.id) ?? [];
-  // Start with O/X (easiest), then alternate so the same card is not repeated.
-  const want = progress?.lastType === "ox" ? "choice" : "ox";
-  return own.find((q) => q.type === want) ?? own[0];
+  return own.find((q) => q.type === "ox") ?? own[0];
 }
 
 /**
@@ -114,7 +114,7 @@ export function buildDeck(
   const cards: GapCard[] = [];
   for (const concept of [...due, ...unseen, ...later]) {
     if (cards.length >= size) break;
-    const q = pickQuestion(concept, gp[concept.id], byConcept);
+    const q = pickQuestion(concept, byConcept);
     if (!q) continue;
     const cardId = `${s.learnerId}:${s.memoryRevision}:${cards.length}`;
     const { questionId, ...main } = variant(q, concept, cardId);
@@ -124,6 +124,7 @@ export function buildDeck(
     const term = termQuestion(concept, s.concepts);
     cards.push({
       cardId,
+      short: q.short,
       learnerId: s.learnerId,
       questionId,
       conceptId: concept.id,

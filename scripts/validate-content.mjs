@@ -57,6 +57,24 @@ for (const q of questions) {
       throw Error(`Invalid builtOn: ${q.id}`);
   }
 }
+// Lock-screen wording: same rough measure as src/domain/fit.ts (two 9.8em lines).
+function ems(text) {
+  let w = 0;
+  for (const ch of text) {
+    if (/[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af\u4e00-\u9fff]/.test(ch)) w += 1;
+    else if (ch === " ") w += 0.3;
+    else if (/[A-Z]/.test(ch)) w += 0.68;
+    else if (/[a-z0-9]/.test(ch)) w += 0.56;
+    else w += 0.36;
+  }
+  return w;
+}
+for (const q of questions) {
+  if (q.short !== undefined && (q.type !== "ox" || typeof q.short !== "string" || !q.short))
+    throw Error(`Invalid short: ${q.id}`);
+  if (q.layer === "gap" && q.type === "ox" && ems(q.short ?? q.prompt) > 19.6)
+    throw Error(`Lock-screen O/X needs a short wording: ${q.id}`);
+}
 for (const c of concepts) {
   const own = questions.filter((q) => q.conceptId === c.id);
   // Gap cards: one O/X and one quick choice. App layer: one deeper choice.

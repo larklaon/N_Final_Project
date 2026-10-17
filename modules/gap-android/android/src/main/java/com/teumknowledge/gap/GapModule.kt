@@ -26,7 +26,7 @@ class GapModule : Module() {
         val card = state.current() ?: return@read "null"
         val minute = java.util.Calendar.getInstance().let { it.get(java.util.Calendar.HOUR_OF_DAY) * 60 + it.get(java.util.Calendar.MINUTE) }
         val options = org.json.JSONArray().apply { card.options.forEach { put(JSONObject().put("id", it.id).put("text", it.text)) } }
-        JSONObject().put("prompt", card.prompt).put("area", card.area).put("type", card.type).put("options", options)
+        JSONObject().put("prompt", card.prompt).put("short", card.short).put("area", card.area).put("type", card.type).put("options", options)
           .put("onLockScreen", state.view(forNotification = true, minute) !is GapView.Hidden).toString()
       }
     }

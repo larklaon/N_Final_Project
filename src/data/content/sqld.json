@@ -286,7 +286,8 @@
           "checkedAt": "출처 대조 전"
         }
       ],
-      "contentVersion": 1
+      "contentVersion": 1,
+      "short": "엔터티는 인스턴스가 둘 이상이다."
     },
     {
       "id": "sqld-entity-choice",
@@ -382,7 +383,8 @@
           "checkedAt": "출처 대조 전"
         }
       ],
-      "contentVersion": 1
+      "contentVersion": 1,
+      "short": "속성 하나에 값이 여럿일 수 있다."
     },
     {
       "id": "sqld-attribute-choice",
@@ -673,7 +675,8 @@
           "checkedAt": "출처 대조 전"
         }
       ],
-      "contentVersion": 1
+      "contentVersion": 1,
+      "short": "DISTINCT는 중복 행을 하나로 줄인다."
     },
     {
       "id": "sqld-select-choice",
@@ -1065,7 +1068,8 @@
           "checkedAt": "출처 대조 전"
         }
       ],
-      "contentVersion": 1
+      "contentVersion": 1,
+      "short": "여러 행 서브쿼리엔 IN을 쓴다."
     },
     {
       "id": "sqld-subquery-choice",

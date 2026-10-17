@@ -11,6 +11,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.graphics.Typeface
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.util.SizeF
 import android.util.TypedValue
 import android.view.View
@@ -63,6 +68,29 @@ object GapSurfaces {
     return "정답은 ${shortLabel(card, right)}"
   }
 
+  /** The note if verdict and note fit two collapsed lines; otherwise just the piece's name. */
+  fun collapsedNote(verdict: String, card: GapCard): String =
+    if (ems("$verdict  ${card.feedback}") <= 2 * LOCK_LINE_EMS) card.feedback else card.conceptTitle.ifEmpty { card.feedback }
+
+  /** Same rough measure as src/domain/fit.ts. */
+  fun ems(text: String): Double = text.sumOf { ch ->
+    when {
+      ch in '\u1100'..'\u11ff' || ch in '\u3130'..'\u318f' || ch in '\uac00'..'\ud7af' || ch in '\u4e00'..'\u9fff' -> 1.0
+      ch == ' ' -> 0.3
+      ch in 'A'..'Z' -> 0.68
+      ch in 'a'..'z' || ch in '0'..'9' -> 0.56
+      else -> 0.36
+    }
+  }
+  private const val LOCK_LINE_EMS = 9.8
+
+  private fun verdictLine(verdict: String, note: String): CharSequence =
+    SpannableStringBuilder(verdict).apply {
+      setSpan(StyleSpan(Typeface.BOLD), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+      setSpan(ForegroundColorSpan(ACCENT), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+      append(" · ").append(note)
+    }
+
   private fun ensureChannel(context: Context) {
     val nm = context.getSystemService(NotificationManager::class.java)
     if (nm.getNotificationChannel(CHANNEL) != null) return
@@ -113,9 +141,10 @@ object GapSurfaces {
   private val wideOxIds = intArrayOf(R.id.gap_ox_wide_1, R.id.gap_ox_wide_2)
 
   private fun bindQuestion(context: Context, v: RemoteViews, card: GapCard, compact: Boolean) {
-    v.setTextViewText(R.id.gap_prompt, card.prompt)
+    // Collapsed shows the short lock-screen wording; expanded shows the full prompt.
+    v.setTextViewText(R.id.gap_prompt, if (compact) card.collapsedPrompt else card.prompt)
     v.setInt(R.id.gap_prompt, "setMaxLines", if (!compact) 5 else if (card.isOx) 2 else 1)
-    v.setTextViewTextSize(R.id.gap_prompt, TypedValue.COMPLEX_UNIT_SP, if (compact) 13f else 16f)
+    v.setTextViewTextSize(R.id.gap_prompt, TypedValue.COMPLEX_UNIT_SP, if (compact) 14f else 16f)
     // Collapsed: O/X keys beside the band. Expanded: wide O/X keys, or the choices, below it.
     val inlineOx = card.isOx && compact
     val wideOx = card.isOx && !compact
@@ -140,8 +169,13 @@ object GapSurfaces {
 
   private fun bindResult(context: Context, v: RemoteViews, card: GapCard, a: GapAnswer, compact: Boolean) {
     v.setTextViewText(R.id.gap_result_title, resultTitle(card, a))
-    v.setTextViewText(R.id.gap_result_feedback, card.feedback)
-    v.setInt(R.id.gap_result_feedback, "setMaxLines", if (compact) 1 else 4)
+    // Collapsed: verdict and note share two lines; expanded: verdict above, note below.
+    v.setViewVisibility(R.id.gap_result_title, if (compact) View.GONE else View.VISIBLE)
+    v.setTextViewText(
+      R.id.gap_result_feedback,
+      if (compact) verdictLine(resultTitle(card, a), collapsedNote(resultTitle(card, a), card)) else card.feedback,
+    )
+    v.setInt(R.id.gap_result_feedback, "setMaxLines", if (compact) 2 else 4)
     v.setTextViewTextSize(R.id.gap_result_feedback, TypedValue.COMPLEX_UNIT_SP, if (compact) 13f else 15f)
     v.setViewVisibility(R.id.gap_next, if (compact) View.VISIBLE else View.GONE)
     v.setViewVisibility(R.id.gap_next_wide, if (compact) View.GONE else View.VISIBLE)

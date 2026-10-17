@@ -13,6 +13,8 @@ export type GapConfig = {
 };
 export type GapPreview = {
   prompt: string;
+  /** Collapsed lock-screen wording, when the prompt is too long. */
+  short?: string;
   area: string;
   type: "ox" | "choice";
   options: { id: string; text: string }[];

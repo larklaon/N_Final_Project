@@ -3,6 +3,7 @@ import { LearningRepository } from "../../data/repositories/LearningRepository";
 import { advanceGap, buildDeck, withinWindow } from "../gap";
 import { DAY } from "../review";
 import { cue, termId, termQuestion } from "../term";
+import { fitsLockCard } from "../fit";
 
 const now = Date.UTC(2026, 9, 15, 12);
 function setup() {
@@ -33,7 +34,7 @@ test("a fresh deck starts with O/X cards in curriculum order and never uses app 
   expect(new Set(deck.map((c) => c.cardId)).size).toBe(5);
 });
 
-test("due pieces come first and alternate card type; future pieces fill the tail", () => {
+test("due pieces come first; future pieces fill the tail; the lock screen always asks O/X", () => {
   const repo = setup();
   const learner = repo.activeLearner;
   const ox = repo.quiz("ds-stack-ox");
@@ -44,9 +45,19 @@ test("due pieces come first and alternate card type; future pieces fill the tail
   ]);
   const s = repo.snapshot();
   const deck = buildDeck(s, repo.questions(), now, 60);
-  expect(deck[0]).toMatchObject({ conceptId: "ds-stack", type: "choice" });
+  expect(deck[0]).toMatchObject({ conceptId: "ds-stack", type: "ox" });
   expect(deck[deck.length - 1].conceptId).toBe("net-http");
   expect(deck).toHaveLength(60);
+  expect(deck.every((c) => c.type === "ox")).toBe(true);
+});
+
+test("every lock-screen card fits two collapsed lines", () => {
+  const repo = setup();
+  for (const id of ["info-basic", "sqld-taste"]) {
+    repo.installSubject(id);
+    for (const card of buildDeck(repo.snapshot(), repo.questions(), now, 100))
+      expect([card.questionId, fitsLockCard(card.short ?? card.prompt)]).toEqual([card.questionId, true]);
+  }
 });
 
 test("feedback stays short enough for a notification line", () => {

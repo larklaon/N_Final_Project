@@ -17,7 +17,10 @@ data class GapCard(
   val feedback: String,
   /** Same piece in other shapes ("ox", "choice", "term"); the widget picks one by its size. */
   val variants: Map<String, GapCard> = emptyMap(),
+  /** Wording that fits the collapsed lock-screen card; empty when the prompt already fits. */
+  val short: String = "",
 ) {
+  val collapsedPrompt get() = short.ifEmpty { prompt }
   val isOx get() = type == "ox"
   fun option(id: String) = options.firstOrNull { it.id == id }
   fun variant(key: String) = variants[key] ?: this
@@ -175,11 +178,11 @@ class GapState(val root: JSONObject = JSONObject()) {
   companion object {
     fun parseCard(o: JSONObject): GapCard {
       val card = parseShape(o, o)
-      val v = o.optJSONObject("variants") ?: return card
+      val v = o.optJSONObject("variants") ?: return card.copy(short = o.optString("short"))
       val variants = v.keys().asSequence().mapNotNull { key ->
         v.optJSONObject(key)?.let { x -> runCatching { key to parseShape(x, o) }.getOrNull() }
       }.toMap()
-      return card.copy(variants = variants)
+      return card.copy(variants = variants, short = o.optString("short"))
     }
     /** A variant shares the card's identity and piece; only the question differs. */
     private fun parseShape(o: JSONObject, card: JSONObject): GapCard {

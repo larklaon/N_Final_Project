@@ -25,6 +25,8 @@ export type Quiz = {
   /** gap: glanceable card outside the app. app: deeper in-app question. */
   layer: "gap" | "app";
   prompt: string;
+  /** Lock-screen wording that fits the collapsed card; same truth value as the prompt. */
+  short?: string;
   context?: string;
   contextIsCode?: boolean;
   /** Concepts an app question leans on; seen gap pieces among them are surfaced. */

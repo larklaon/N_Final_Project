@@ -37,7 +37,7 @@ function CardPreview({ card, hours }: { card: GapPreview; hours: string }) {
         <View style={p.row}>
           <View style={p.band}>
             <Text style={p.prompt} numberOfLines={2}>
-              {card.prompt}
+              {card.short || card.prompt}
             </Text>
           </View>
           {card.type === "ox" &&
