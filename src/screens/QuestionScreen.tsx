@@ -25,6 +25,7 @@ import {
   useReducedMotion,
 } from "../components/ui";
 import { useApp } from "../platform/AppProvider";
+import { AskBar } from "../components/AskBar";
 import { dailyCount, fittedToday, planConcept } from "../domain/selection";
 import { usePlan } from "../services/ai/plan";
 import { useProfileModels } from "../services/ai/useProfileModels";
@@ -290,24 +291,12 @@ export function QuestionScreen() {
   const used = answered?.correct ? seenPieceUsed(snapshot, quiz) : null;
   const answerStyle = correctText.length <= 10 ? type.answer : type.answerLong;
   const askBar = canAsk ? (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() =>
-        router.push({
-          pathname: "/ai/[conceptId]",
-          params: {
-            conceptId: concept.id,
-            mode: answered ? "why" : "hint",
-            questionId: quiz.id,
-            selected: answered?.selected ?? selected,
-          },
-        })
-      }
-      style={({ pressed }) => [s.askBar, pressed && { opacity: 0.7 }]}
-    >
-      <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.inkSoft} accessible={false} />
-      <Text style={s.askText}>{answered ? "왜 그런지 AI에게 물어보기" : "힌트 물어보기"}</Text>
-    </Pressable>
+    <AskBar
+      conceptId={concept.id}
+      questionId={quiz.id}
+      selected={answered?.selected ?? selected}
+      answered={!!answered}
+    />
   ) : null;
 
   return (
@@ -426,16 +415,4 @@ const s = StyleSheet.create({
   seenGo: { ...type.small, fontSize: 13, color: colors.inkSoft },
   verdictText: { ...type.small, fontFamily: fonts.semibold, color: colors.bandLabel },
   chosen: { ...type.small, color: colors.bandText2 },
-  askBar: {
-    minHeight: 48,
-    marginTop: 8,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: colors.inkLine,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 18,
-  },
-  askText: { ...type.small, color: colors.inkSoft },
 });

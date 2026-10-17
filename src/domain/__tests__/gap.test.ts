@@ -104,6 +104,13 @@ test("the last gap answer for a piece comes back with its question, term ones in
   expect(last).toMatchObject({ selectedOptionId: wrong, correct: false, answeredAt: now });
   expect(last.quiz.id).toBe(termId("net-tcp"));
   expect(last.quiz.options).toHaveLength(4);
+  // The AI chat looks questions up by id; generated ones resolve too.
+  expect(repo.quiz(termId("net-tcp")).options).toHaveLength(4);
+  // Answering it again (the revisit screen) replaces "last time".
+  repo.ingestGapEvents([
+    { id: "l3", learnerId: learner, questionId: termId("net-tcp"), selectedOptionId: "net-tcp", answeredAt: now + 1 },
+  ]);
+  expect(repo.lastGapAnswer("net-tcp")).toMatchObject({ correct: true, selectedOptionId: "net-tcp" });
 });
 
 test("term cues hide the term behind 이것", () => {

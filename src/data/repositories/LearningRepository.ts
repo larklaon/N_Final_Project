@@ -268,8 +268,11 @@ export class LearningRepository {
       "SELECT data FROM quizzes WHERE id=?",
       id,
     );
-    if (!row) throw Error("문제를 찾지 못했어요.");
-    return JSON.parse(row.data);
+    if (row) return JSON.parse(row.data);
+    // Widget term questions are generated, not stored.
+    const generated = this.questionIndex().get(id);
+    if (!generated) throw Error("문제를 찾지 못했어요.");
+    return generated;
   }
   /** The last answer given to this piece on the lock screen or widget, with the question asked. */
   lastGapAnswer(
