@@ -110,27 +110,31 @@ object GapSurfaces {
 
   private val optionIds = intArrayOf(R.id.gap_option_1, R.id.gap_option_2, R.id.gap_option_3, R.id.gap_option_4)
   private val oxIds = intArrayOf(R.id.gap_ox_1, R.id.gap_ox_2)
+  private val wideOxIds = intArrayOf(R.id.gap_ox_wide_1, R.id.gap_ox_wide_2)
 
   private fun bindQuestion(context: Context, v: RemoteViews, card: GapCard, compact: Boolean) {
     v.setTextViewText(R.id.gap_prompt, card.prompt)
     v.setInt(R.id.gap_prompt, "setMaxLines", if (!compact) 5 else if (card.isOx) 2 else 1)
-    // O/X fits beside the prompt even when collapsed; multiple choice needs the expanded card.
-    val inlineOx = card.isOx
+    v.setTextViewTextSize(R.id.gap_prompt, TypedValue.COMPLEX_UNIT_SP, if (compact) 13f else 16f)
+    // Collapsed: O/X keys beside the band. Expanded: wide O/X keys, or the choices, below it.
+    val inlineOx = card.isOx && compact
+    val wideOx = card.isOx && !compact
     v.setViewVisibility(R.id.gap_ox_row, if (inlineOx) View.VISIBLE else View.GONE)
-    v.setViewVisibility(R.id.gap_options, if (!inlineOx && !compact) View.VISIBLE else View.GONE)
-    v.setViewVisibility(R.id.gap_expand_hint, if (!inlineOx && compact) View.VISIBLE else View.GONE)
-    oxIds.forEachIndexed { i, id ->
+    v.setViewVisibility(R.id.gap_ox_wide, if (wideOx) View.VISIBLE else View.GONE)
+    v.setViewVisibility(R.id.gap_options, if (!card.isOx && !compact) View.VISIBLE else View.GONE)
+    v.setViewVisibility(R.id.gap_expand_hint, if (!card.isOx && compact) View.VISIBLE else View.GONE)
+    for ((ids, shown) in listOf(oxIds to inlineOx, wideOxIds to wideOx)) ids.forEachIndexed { i, id ->
       val option = card.options.getOrNull(i)
-      v.setViewVisibility(id, if (inlineOx && option != null) View.VISIBLE else View.GONE)
-      if (option != null && inlineOx) {
+      v.setViewVisibility(id, if (shown && option != null) View.VISIBLE else View.GONE)
+      if (option != null && shown) {
         v.setTextViewText(id, shortLabel(card, option)); v.setOnClickPendingIntent(id, answer(context, card, option))
         v.setContentDescription(id, option.text)
       }
     }
     optionIds.forEachIndexed { i, id ->
       val option = card.options.getOrNull(i)
-      v.setViewVisibility(id, if (!inlineOx && option != null) View.VISIBLE else View.GONE)
-      if (option != null && !inlineOx) { v.setTextViewText(id, option.text); v.setOnClickPendingIntent(id, answer(context, card, option)) }
+      v.setViewVisibility(id, if (!card.isOx && option != null) View.VISIBLE else View.GONE)
+      if (option != null && !card.isOx) { v.setTextViewText(id, option.text); v.setOnClickPendingIntent(id, answer(context, card, option)) }
     }
   }
 
@@ -138,7 +142,10 @@ object GapSurfaces {
     v.setTextViewText(R.id.gap_result_title, resultTitle(card, a))
     v.setTextViewText(R.id.gap_result_feedback, card.feedback)
     v.setInt(R.id.gap_result_feedback, "setMaxLines", if (compact) 1 else 4)
-    v.setOnClickPendingIntent(R.id.gap_next, next(context, card))
+    v.setTextViewTextSize(R.id.gap_result_feedback, TypedValue.COMPLEX_UNIT_SP, if (compact) 13f else 15f)
+    v.setViewVisibility(R.id.gap_next, if (compact) View.VISIBLE else View.GONE)
+    v.setViewVisibility(R.id.gap_next_wide, if (compact) View.GONE else View.VISIBLE)
+    v.setOnClickPendingIntent(if (compact) R.id.gap_next else R.id.gap_next_wide, next(context, card))
   }
 
   /**
