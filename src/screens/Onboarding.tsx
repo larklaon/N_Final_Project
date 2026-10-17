@@ -50,7 +50,7 @@ export function Onboarding() {
   const steps = (
     <View style={s.steps} accessibilityLabel={`${step + 1}단계, ${STEPS}단계 중`}>
       {Array.from({ length: STEPS }, (_, i) => (
-        <View key={i} style={[s.step, i <= step && { backgroundColor: colors.band }]} />
+        <View key={i} style={[s.step, i <= step && { backgroundColor: colors.mint }]} />
       ))}
     </View>
   );

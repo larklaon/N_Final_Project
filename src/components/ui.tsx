@@ -290,7 +290,7 @@ export function Toggle({
       onPress={() => onValueChange(!value)}
       style={[
         s.toggle,
-        { backgroundColor: value ? colors.ink : colors.bandLine },
+        { backgroundColor: value ? colors.mintDeep : colors.bandLine },
         { justifyContent: value ? "flex-end" : "flex-start" },
         disabled && s.disabled,
       ]}
@@ -604,12 +604,12 @@ export function DarkNote({
   );
 }
 /** Fill for a resolution step 0–5: the clearer the knowledge, the stronger the color. */
+/** Steps 1–5 deepen like the app mark: pale mint toward clear mint (on ink) or deep mint (on the band). */
+const darkSteps = [colors.inkLine, "#3E4D45", colors.band, colors.mintSoft, "#9CE2C6", colors.mint];
+const lightSteps = [colors.bandFaint, "#CFE3D8", "#A6D9C2", "#76C9A6", "#4BB38A", colors.mintDeep];
 export function bandColor(level: number, tone: "dark" | "light") {
-  const alphas = [0, 0.26, 0.46, 0.68, 0.88, 1];
-  if (level <= 0) return tone === "dark" ? colors.inkLine : colors.bandFaint;
-  return tone === "dark"
-    ? `rgba(232,240,234,${alphas[level]})`
-    : `rgba(18,21,19,${alphas[level]})`;
+  const i = Math.max(0, Math.min(5, level));
+  return tone === "dark" ? darkSteps[i] : lightSteps[i];
 }
 /** One area's pieces, colored by resolution. Step 5 (fully in your head) gets a ring. */
 export function PuzzleMap({
@@ -623,7 +623,7 @@ export function PuzzleMap({
   size?: number;
   tone?: "dark" | "light";
 }) {
-  const full = tone === "dark" ? colors.band : colors.ink;
+  const full = tone === "dark" ? colors.mint : colors.mintDeep;
   return (
     <View style={{ flexDirection: "row", gap: Math.max(3, size / 2.5) }} accessible={false}>
       {levels.map((level, i) => (

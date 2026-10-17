@@ -123,7 +123,7 @@ function SeenPiece({
         <Text style={s.seenMeta}>
           {when} 스친 조각
           {!!result && (
-            <Text style={{ color: past ? colors.band : colors.dangerOnInk }}>
+            <Text style={{ color: past ? colors.mint : colors.dangerOnInk }}>
               {"  "}
               {past ? "✓ " : "✕ "}
               {result}
@@ -222,7 +222,7 @@ export function QuestionScreen() {
                 : []
           }
         />
-        <Text style={[s.headerText, answered?.correct && { color: colors.band }]}>
+        <Text style={[s.headerText, answered?.correct && { color: colors.mint }]}>
           {area.average}%
         </Text>
       </Pressable>
@@ -350,8 +350,8 @@ export function QuestionScreen() {
         ) : answered.correct ? (
           <Band slant={4}>
             <View style={s.verdict} accessibilityLiveRegion="polite">
-              <Ionicons name="checkmark-circle" size={22} color={colors.ink} accessible={false} />
-              <Text style={s.verdictText}>맞았어요</Text>
+              <Ionicons name="checkmark-circle" size={22} color={colors.mintDeep} accessible={false} />
+              <Text style={[s.verdictText, s.verdictRight]}>맞았어요</Text>
             </View>
             <Text style={[answerStyle, s.bandText]}>{correctText}</Text>
             <BandBody>{quiz.explanation}</BandBody>
@@ -414,5 +414,6 @@ const s = StyleSheet.create({
   seenTitle: { ...type.option, fontFamily: fonts.semibold, color: colors.inkText },
   seenGo: { ...type.small, fontSize: 13, color: colors.inkSoft },
   verdictText: { ...type.small, fontFamily: fonts.semibold, color: colors.bandLabel },
+  verdictRight: { color: colors.mintDeep },
   chosen: { ...type.small, color: colors.bandText2 },
 });

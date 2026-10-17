@@ -155,7 +155,7 @@ const s = StyleSheet.create({
   days: { flexDirection: "row", gap: 8 },
   day: { flex: 1, alignItems: "center", gap: 6 },
   dayTrack: { width: "100%", height: 40, borderRadius: 6, backgroundColor: colors.bandFaint, justifyContent: "flex-end", overflow: "hidden" },
-  dayFill: { width: "100%", backgroundColor: colors.ink },
+  dayFill: { width: "100%", backgroundColor: colors.mintDeep },
   dayText: { ...type.small, fontSize: 12, color: colors.bandText2 },
   area: { borderTopWidth: 1, borderTopColor: colors.bandLine },
   areaHead: { paddingVertical: 18, gap: 12 },
