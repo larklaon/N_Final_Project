@@ -4,11 +4,12 @@
     "slug": "teum-knowledge",
     "version": "0.1.0",
     "orientation": "default",
-    "icon": "./assets/teum-icon.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/teum-icon.png",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png",
         "backgroundColor": "#121513"
       },
       "predictiveBackGestureEnabled": true,
@@ -44,7 +45,16 @@
         }
       ],
       "expo-asset",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 140,
+          "resizeMode": "contain",
+          "backgroundColor": "#121513"
+        }
+      ]
     ],
     "scheme": "teumknowledge",
     "platforms": [
