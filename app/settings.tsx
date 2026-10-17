@@ -301,7 +301,8 @@ export default function Settings() {
             label="연결 취소"
             onPress={() => void run(() => getSiwc().cancelSignIn())}
           />
-        ) : (
+        ) : auth.status === "ready" ? null : (
+          // Already connected: no sign-in button, only "add another account" below.
           <Button
             label={
               auth.status === "connectedWithoutPlan"

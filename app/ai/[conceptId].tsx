@@ -23,6 +23,7 @@ import {
 import { aiErrorMessage } from "../../src/services/ai/errors";
 import { useProfileModels } from "../../src/services/ai/useProfileModels";
 import { openSubscriptionUsage } from "../../src/services/ai/subscriptionUsage";
+import { RichText } from "../../src/components/RichText";
 import type { ChatMessage } from "../../src/domain/types";
 import { colors, fonts, type } from "../../src/theme/tokens";
 
@@ -81,9 +82,14 @@ function AskAiScreen() {
     }
   })();
   const chosen = question?.options.find((o) => o.id === selected)?.text ?? null;
+  const wasRight = !!question && selected === question.correctOptionId;
   const prompts =
     mode === "why"
-      ? ["왜 이게 정답이야?", "내가 고른 답은 왜 틀렸어?", "비슷한 예를 하나 들어 줘"]
+      ? [
+          "왜 이게 정답이야?",
+          wasRight ? "다른 보기는 왜 아니야?" : "내가 고른 답은 왜 틀렸어?",
+          "비슷한 예를 하나 들어 줘",
+        ]
       : mode === "hint"
         ? ["힌트 하나만 줘", "이 문제가 묻는 게 뭐야?"]
         : suggestions;
@@ -292,7 +298,7 @@ function AskAiScreen() {
         ))}
         {busy && (
           <View style={[s.bubble, s.ai]} accessibilityLiveRegion="polite">
-            <Text style={[s.bubbleText, { color: colors.ink }]}>{streaming || "생각하는 중…"}</Text>
+            <RichText style={[s.bubbleText, { color: colors.ink }]}>{streaming || "생각하는 중…"}</RichText>
           </View>
         )}
         {!!error && <Message text={error} error />}
@@ -409,9 +415,15 @@ function Bubble({ message }: { message: ChatMessage }) {
           </Text>
         </View>
       )}
-      <Text selectable style={[s.bubbleText, { color: mine ? colors.band : colors.ink }]}>
-        {message.text}
-      </Text>
+      {mine ? (
+        <Text selectable style={[s.bubbleText, { color: colors.band }]}>
+          {message.text}
+        </Text>
+      ) : (
+        <RichText selectable style={[s.bubbleText, { color: colors.ink }]}>
+          {message.text}
+        </RichText>
+      )}
     </View>
   );
 }

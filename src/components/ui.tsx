@@ -413,12 +413,22 @@ export function DarkScreen({
           {header}
         </View>
       )}
-      <ScrollView
-        contentContainerStyle={s.darkBody}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={s.darkMeasure}>{children}</View>
-      </ScrollView>
+      <View style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={s.darkBody}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={s.darkMeasure}>{children}</View>
+        </ScrollView>
+        {/* Long content fades into the footer instead of being cut at its edge. */}
+        {footer && (
+          <View pointerEvents="none" style={s.darkFade}>
+            {[0.12, 0.3, 0.5, 0.7, 0.88].map((a) => (
+              <View key={a} style={{ flex: 1, backgroundColor: `rgba(18,21,19,${a})` }} />
+            ))}
+          </View>
+        )}
+      </View>
       {footer && (
         <View style={[s.darkFooter, { paddingHorizontal: gutter(width) }]}>
           <View style={s.darkMeasureInner}>{footer}</View>
@@ -746,7 +756,8 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  darkBody: { flexGrow: 1, justifyContent: "center", paddingVertical: 16 },
+  darkBody: { flexGrow: 1, justifyContent: "center", paddingTop: 16, paddingBottom: 28 },
+  darkFade: { position: "absolute", left: 0, right: 0, bottom: 0, height: 28 },
   darkMeasure: { width: "100%", alignSelf: "center", maxWidth: 680, gap: 28 },
   darkFooter: { paddingTop: 8, paddingBottom: 16, alignItems: "center" },
   darkMeasureInner: { width: "100%", maxWidth: 600, gap: 4 },

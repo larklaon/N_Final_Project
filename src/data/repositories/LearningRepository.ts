@@ -173,10 +173,14 @@ export class LearningRepository {
       learnerId,
     ))
       gapProgress[row.conceptId] = JSON.parse(row.data);
-    const attempts = this.db.getAllSync<Attempt>(
-      "SELECT id,conceptId,quizId,correct,isGraded,answeredAt,localDate FROM attempts WHERE learnerId=? ORDER BY answeredAt DESC",
-      learnerId,
-    );
+    // Only this subject's answers: daily count, plan input and puzzle are per subject.
+    const inSubject = new Set(concepts.map((c) => c.id));
+    const attempts = this.db
+      .getAllSync<Attempt>(
+        "SELECT id,conceptId,quizId,correct,isGraded,answeredAt,localDate FROM attempts WHERE learnerId=? ORDER BY answeredAt DESC",
+        learnerId,
+      )
+      .filter((a) => inSubject.has(a.conceptId));
     return {
       learnerId,
       settings,

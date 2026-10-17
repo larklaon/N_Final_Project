@@ -50,7 +50,7 @@ jest.mock("../../components/ui", () => {
 afterEach(() => jest.restoreAllMocks());
 test.each<[AuthStatus, string, boolean]>([
   ["connectedWithoutPlan", "ChatGPT 플랜 사용 허용", true],
-  ["ready", "Continue with ChatGPT", false],
+  ["reconnectRequired", "Continue with ChatGPT", false],
 ])(
   "%s requests consent only for explicit plan enable",
   async (status, label, consent) => {
@@ -77,3 +77,17 @@ test.each<[AuthStatus, string, boolean]>([
     );
   },
 );
+
+test("a connected account shows no sign-in button, only adding another account", () => {
+  jest.mocked(useApp).mockReturnValue({
+    repo: { updateSettings: jest.fn() },
+    snapshot: { learnerId: "a", settings: defaultSettings },
+    auth: { status: "ready", profileId: "account" },
+    profiles: [],
+    refresh: jest.fn(),
+    refreshAuth: jest.fn().mockResolvedValue(undefined),
+  } as unknown as ReturnType<typeof useApp>);
+  const ui = render(<Settings />);
+  expect(ui.queryByText("Continue with ChatGPT")).toBeNull();
+  expect(ui.getByText("다른 ChatGPT 계정 추가")).toBeTruthy();
+});

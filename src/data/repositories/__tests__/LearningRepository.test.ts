@@ -302,9 +302,13 @@ test("installing a subject switches the learner to that pack only; records stay 
   expect(s.concepts.every((c) => c.subjectId === "sqld-taste")).toBe(true);
   const session = repo.openSession("sqld-select");
   repo.submit(session.id, "a");
+  expect(dailyCount(repo.snapshot(), now)).toBe(1);
   repo.installSubject("info-basic");
   expect(repo.snapshot().concepts).toHaveLength(60);
   expect(repo.snapshot().progress["sqld-select"]).toBeDefined();
+  // Today's count belongs to the subject it was earned in.
+  expect(dailyCount(repo.snapshot(), now)).toBe(0);
+  expect(repo.snapshot().attempts).toHaveLength(0);
   expect(() => repo.installSubject("toeic-words")).toThrow("아직 열리지 않은 과목");
 });
 
