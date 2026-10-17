@@ -294,7 +294,7 @@ function AskAiScreen() {
           </View>
         )}
         {messages.map((m) => (
-          <Bubble key={m.id} message={m} />
+          <Bubble key={m.id} message={m} onScreen={question?.prompt ?? null} />
         ))}
         {busy && (
           <View style={[s.bubble, s.ai]} accessibilityLiveRegion="polite">
@@ -403,17 +403,29 @@ function AskAiScreen() {
   );
 }
 
-function Bubble({ message }: { message: ChatMessage }) {
+/**
+ * [onScreen] is the question already shown at the top; a message about it gets a small
+ * tag instead of repeating the sentence. Other quotes widen the bubble so they read in full lines.
+ */
+function Bubble({ message, onScreen }: { message: ChatMessage; onScreen: string | null }) {
   const mine = message.role === "user";
+  const aboutQuestion = !!message.quote && message.quote === onScreen;
   return (
-    <View style={[s.bubble, mine ? s.me : s.ai]}>
-      {message.quote && (
-        <View style={s.bubbleQuote}>
-          <View style={[s.quoteBar, { backgroundColor: mine ? colors.inkMuted : colors.bandLabel }]} />
-          <Text style={[s.quoteText, { color: mine ? colors.inkSoft : colors.bandText2 }]} numberOfLines={3}>
-            {message.quote}
-          </Text>
+    <View style={[s.bubble, mine ? s.me : s.ai, !!message.quote && !aboutQuestion && s.quoted]}>
+      {aboutQuestion ? (
+        <View style={s.tag}>
+          <Ionicons name="return-down-forward-outline" size={13} color={colors.inkSoft} accessible={false} />
+          <Text style={s.tagText}>이 문제에 대해</Text>
         </View>
+      ) : (
+        !!message.quote && (
+          <View style={s.bubbleQuote}>
+            <View style={[s.quoteBar, { backgroundColor: mine ? colors.inkMuted : colors.bandLabel }]} />
+            <Text style={[s.quoteText, { color: mine ? colors.inkSoft : colors.bandText2 }]} numberOfLines={2}>
+              {message.quote}
+            </Text>
+          </View>
+        )
       )}
       {mine ? (
         <Text selectable style={[s.bubbleText, { color: colors.band }]}>
@@ -446,6 +458,9 @@ const s = StyleSheet.create({
   ai: { alignSelf: "flex-start", backgroundColor: "rgba(18,21,19,0.06)", borderBottomLeftRadius: 4 },
   bubbleText: { ...type.body, fontSize: 16, lineHeight: 25 },
   bubbleQuote: { flexDirection: "row", gap: 8 },
+  quoted: { minWidth: "72%" },
+  tag: { flexDirection: "row", alignItems: "center", gap: 4 },
+  tagText: { ...type.small, fontSize: 12, lineHeight: 16, color: colors.inkSoft },
   composer: {
     paddingHorizontal: 16,
     paddingTop: 10,

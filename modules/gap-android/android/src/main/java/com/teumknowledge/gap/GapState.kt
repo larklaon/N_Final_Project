@@ -64,22 +64,43 @@ class GapState(val root: JSONObject = JSONObject()) {
 
   fun current(): GapCard? = deck.getOrNull(index)
 
+  /** A result the learner was reading when a new deck arrived. It stays until "다음". */
+  private val held: Pair<GapCard, JSONObject>? get() = root.optJSONObject("held")?.let { h ->
+    runCatching { parseCard(h.getJSONObject("card")) to h.getJSONObject("answer") }.getOrNull()
+  }
+
+  /** The card on screen: a held result, otherwise the deck's current card. */
+  fun showingId(): String? = held?.first?.cardId ?: current()?.cardId
+
   /** The widget follows the deck whenever it has cards; the lock-screen card also needs `enabled` and the window. */
   fun view(forNotification: Boolean, minuteOfDay: Int): GapView {
-    val card = current() ?: return GapView.Hidden
+    val card = held?.first ?: current() ?: return GapView.Hidden
     if (forNotification && (!enabled || !inWindow(minuteOfDay) || root.optString("dismissed") == card.cardId))
       return GapView.Hidden
+    held?.let { (_, a) ->
+      return GapView.Result(card, GapAnswer(a.getString("selected"), a.getBoolean("correct")), card.shape(a.optString("questionId")) ?: card)
+    }
     val answered = root.optJSONObject("answer")?.optString("questionId")
     return answer?.let { GapView.Result(card, it, card.shape(answered) ?: card) } ?: GapView.Question(card, index)
   }
 
-  /** Replace config from JS. Pending events survive; display restarts at the new deck's first card. */
+  /**
+   * Replace config from JS. Pending events survive; display restarts at the new deck's first card,
+   * except that a result on screen for the same learner is held until the learner moves on.
+   */
   fun configure(config: JSONObject, now: Long) {
+    val sameLearner = { o: JSONObject -> o.optString("learnerId") == config.optString("learnerId") }
+    val keep = root.optJSONObject("answer")?.let { a ->
+      root.optJSONArray("deck")?.optJSONObject(index)?.takeIf(sameLearner)?.let { c ->
+        JSONObject().put("card", c).put("answer", a)
+      }
+    } ?: root.optJSONObject("held")?.takeIf { h -> h.optJSONObject("card")?.let(sameLearner) == true }
     for (key in listOf("enabled", "learnerId", "intervalMinutes", "start", "end", "deck"))
       root.put(key, config.opt(key) ?: JSONObject.NULL)
     root.put("index", 0)
     root.remove("answer")
     root.remove("dismissed")
+    if (keep != null) root.put("held", keep) else root.remove("held")
     root.put("correctIds", JSONArray())
     root.put("shownAt", now)
   }
@@ -106,6 +127,11 @@ class GapState(val root: JSONObject = JSONObject()) {
 
   /** Next card, skipping ones already answered correctly since the deck arrived. */
   fun advance(now: Long) {
+    if (root.has("held")) {
+      // Leaving a held result shows the new deck from its start.
+      root.remove("held"); root.remove("dismissed"); root.put("shownAt", now)
+      return
+    }
     if (deck.isEmpty()) return
     val done = correctIds().let { a -> (0 until a.length()).map { a.getString(it) }.toSet() }
     var next = index
@@ -128,7 +154,12 @@ class GapState(val root: JSONObject = JSONObject()) {
   }
 
   /** A swiped-away card stays away until the next rotation; the widget is unaffected. */
-  fun dismiss(cardId: String) { if (current()?.cardId == cardId) root.put("dismissed", cardId) }
+  fun dismiss(cardId: String) {
+    if (held?.first?.cardId == cardId) {
+      root.remove("held")
+      current()?.let { root.put("dismissed", it.cardId) }
+    } else if (current()?.cardId == cardId) root.put("dismissed", cardId)
+  }
 
   fun events(): JSONArray = root.optJSONArray("events") ?: JSONArray().also { root.put("events", it) }
 

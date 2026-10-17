@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { findNodeHandle, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Message, Screen } from "../../src/components/ui";
 import { useApp } from "../../src/platform/AppProvider";
 import { resolutionOf } from "../../src/domain/puzzle";
 import { colors, fonts, type } from "../../src/theme/tokens";
+import { readOnlySelection } from "../../modules/text-android";
 
 const levels = [
   "이것만 알아도 대충 알아요",
@@ -16,10 +17,32 @@ const levels = [
 /**
  * Read-only text the learner can drag across. A non-editing TextInput is the only core
  * React Native view that reports the selected range, so the selection can travel to the chat.
+ * Natively its selection menu reads "AI에게 물어보기 · 복사" instead of cut and paste.
  */
-function SelectableBody({ text, onSelect }: { text: string; onSelect: (s: string) => void }) {
+function SelectableBody({
+  text,
+  onSelect,
+  onAsk,
+}: {
+  text: string;
+  onSelect: (s: string) => void;
+  onAsk: (s: string) => void;
+}) {
+  const ref = useRef<TextInput>(null);
+  const latestAsk = useRef(onAsk);
+  useEffect(() => {
+    latestAsk.current = onAsk;
+  });
+  useEffect(
+    () =>
+      readOnlySelection(findNodeHandle(ref.current), "AI에게 물어보기", (t) =>
+        latestAsk.current(t),
+      ),
+    [],
+  );
   return (
     <TextInput
+      ref={ref}
       value={text}
       onChangeText={() => {}}
       multiline
@@ -55,10 +78,10 @@ export default function Concept() {
     concept.explanation,
     concept.deep,
   ];
-  const ask = () =>
+  const ask = (quote = selection) =>
     router.push({
       pathname: "/ai/[conceptId]",
-      params: selection ? { conceptId: concept.id, quote: selection } : { conceptId: concept.id },
+      params: quote ? { conceptId: concept.id, quote } : { conceptId: concept.id },
     });
 
   return (
@@ -98,7 +121,7 @@ export default function Concept() {
                   accessible={false}
                 />
               </Pressable>
-              {open[i] && <SelectableBody text={body} onSelect={setSelection} />}
+              {open[i] && <SelectableBody text={body} onSelect={setSelection} onAsk={ask} />}
             </View>
           ))}
         </View>
@@ -107,7 +130,7 @@ export default function Concept() {
       <View style={s.askBar} pointerEvents="box-none">
         <Pressable
           accessibilityRole="button"
-          onPress={ask}
+          onPress={() => ask()}
           style={({ pressed }) => [s.ask, pressed && { opacity: 0.8 }]}
         >
           <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.band} accessible={false} />

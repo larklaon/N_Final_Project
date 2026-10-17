@@ -353,8 +353,8 @@ export function QuestionScreen() {
           </DarkNote>
         )}
         {used && (
-          <DarkNote icon="lock-closed-outline">
-            {whenSeen(used.lastSeenAt, now)} 잠금 화면에서 본{" "}
+          <DarkNote icon="eye-outline">
+            {whenSeen(used.lastSeenAt, now)} 스치듯 본{" "}
             <Text style={{ color: colors.inkText }}>&apos;{used.title}&apos;</Text> 조각이 이
             문제에 쓰였어요.
           </DarkNote>

@@ -18,7 +18,7 @@ class GapReceiver : BroadcastReceiver() {
         val question = intent.getStringExtra("questionId")
         GapStore.update(context) { it.answer(cardId ?: return@update, option, now, { UUID.randomUUID().toString() }, question) }
       }
-      GapSurfaces.ACTION_NEXT -> GapStore.update(context) { if (it.current()?.cardId == cardId) it.advance(now) }
+      GapSurfaces.ACTION_NEXT -> GapStore.update(context) { if (it.showingId() == cardId) it.advance(now) }
       GapSurfaces.ACTION_DISMISS -> { GapStore.update(context) { it.dismiss(cardId ?: return@update) }; return }
       GapSurfaces.ACTION_TICK -> GapStore.update(context) { it.rotateIfDue(now) }
       else -> return

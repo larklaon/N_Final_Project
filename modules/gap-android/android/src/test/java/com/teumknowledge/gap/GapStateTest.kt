@@ -77,6 +77,9 @@ class GapStateTest {
     s.configure(config(5), now)
     assertEquals(2, s.events().length())
     assertEquals("c0", s.current()!!.cardId)
+    // c1's result was on screen, so it stays until "다음"; then the new deck starts.
+    assertEquals("c1", (s.view(true, 9 * 60) as GapView.Result).card.cardId)
+    s.advance(now)
     assertTrue(s.view(true, 9 * 60) is GapView.Question)
     s.ack(setOf("event-1", "unknown"))
     assertEquals(listOf("event-2"), (0 until s.events().length()).map { s.events().getJSONObject(it).getString("id") })
@@ -127,5 +130,30 @@ class GapStateTest {
     assertEquals(0, (s.view(false, 9 * 60) as GapView.Question).position)
     s.advance(now)
     assertEquals(1, (s.view(false, 9 * 60) as GapView.Question).position)
+  }
+
+  @Test fun aResultOnScreenSurvivesANewDeckUntilNext() {
+    val s = state(3)
+    s.answer("c0", "o", now, newId)
+    // The app syncs while the learner is still reading the result.
+    s.configure(config(2).put("deck", JSONArray().put(card(7)).put(card(8))), now)
+    val v = s.view(true, 9 * 60) as GapView.Result
+    assertEquals("c0", v.card.cardId)
+    assertEquals("c0", s.showingId())
+    s.advance(now)
+    assertEquals("c7", (s.view(true, 9 * 60) as GapView.Question).card.cardId)
+    // A different learner's deck does not inherit the result.
+    s.answer("c7", "o", now, newId)
+    s.configure(config(1).put("learnerId", "other"), now)
+    assertTrue(s.view(true, 9 * 60) is GapView.Question)
+  }
+
+  @Test fun dismissingAHeldResultKeepsTheCardAwayUntilRotation() {
+    val s = state(2)
+    s.answer("c0", "x", now, newId)
+    s.configure(config(2), now)
+    s.dismiss("c0")
+    assertEquals(GapView.Hidden, s.view(true, 9 * 60))
+    assertTrue(s.view(false, 9 * 60) is GapView.Question)
   }
 }
