@@ -140,10 +140,10 @@ export default function Revisit() {
               <Ionicons
                 name={answer.correct ? "checkmark-circle" : "close-circle"}
                 size={20}
-                color={answer.correct ? colors.ink : colors.danger}
+                color={answer.correct ? colors.mintDeep : colors.danger}
                 accessible={false}
               />
-              <Text style={[s.verdict, !answer.correct && { color: colors.danger }]}>
+              <Text style={[s.verdict, { color: answer.correct ? colors.mintDeep : colors.danger }]}>
                 {answer.correct ? "맞았어요" : "정답은"}
               </Text>
             </View>

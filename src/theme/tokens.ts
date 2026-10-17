@@ -11,6 +11,13 @@ export const colors = {
   bandBody: "#263A30",
   bandFaint: "rgba(18,21,19,0.07)",
   bandLine: "rgba(18,21,19,0.10)",
+  /**
+   * The deepening mint from the app mark: things that fill up (resolution, progress, right
+   * answers). `mint` reads on ink; `mintDeep` is the same hue dark enough to read on the band.
+   */
+  mintSoft: "#C2E9D7",
+  mint: "#78DEB6",
+  mintDeep: "#2E9E77",
   danger: "#A53332",
   /** Danger readable on the ink ground. */
   dangerOnInk: "#E3907F",
