@@ -89,9 +89,10 @@ export default function Concept() {
       <Screen>
         <View style={{ gap: 10 }}>
           <Text style={s.area}>
-            {concept.area} · {(() => {
+            {concept.area}
+            {(() => {
               const r = resolutionOf(snapshot, concept.id, now);
-              return r.percent > 0 ? `해상도 ${r.percent}% · 반감기 ${r.halfLife}일` : "아직 맞추지 않은 조각";
+              return r.percent > 0 ? ` · ${r.percent}%` : "";
             })()}
           </Text>
           <Text accessibilityRole="header" style={s.title}>

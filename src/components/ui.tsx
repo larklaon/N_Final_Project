@@ -42,11 +42,14 @@ export function Screen({
   title,
   back = true,
   scrollKey,
+  action,
 }: {
   children: React.ReactNode;
   title?: string;
   back?: boolean;
   scrollKey?: string;
+  /** A small control at the right end of the header, e.g. an info button. */
+  action?: React.ReactNode;
 }) {
   const { width } = useWindowDimensions();
   const router = useRouter();
@@ -75,6 +78,7 @@ export function Screen({
               {title}
             </Text>
           )}
+          {action && <View style={{ marginLeft: "auto" }}>{action}</View>}
         </View>
       )}
       <ScrollView

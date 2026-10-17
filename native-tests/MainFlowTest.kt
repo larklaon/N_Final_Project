@@ -55,6 +55,6 @@ class MainFlowTest {
      .let { instrumentation.targetContext.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
    assertTrue("Progress lost after relaunch",device.wait(Until.hasObject(By.text("1 / 5")),15000))
    device.findObject(By.descStartsWith("퍼즐 보기")).click()
-   find("평균 해상도");screenshot("puzzle")
+   find("퍼즐 설명 보기");screenshot("puzzle")
  }
 }
