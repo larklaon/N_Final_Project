@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Linking, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
 import {
@@ -14,6 +14,7 @@ import {
   Toggle,
 } from "../src/components/ui";
 import { useApp } from "../src/platform/AppProvider";
+import { Wheel } from "../src/components/Wheel";
 import { getSiwc } from "../modules/siwc-android";
 import { getGap, type GapPreview } from "../modules/gap-android";
 import { enableGap, mutateLearningWithGap } from "../src/services/gap/sync";
@@ -85,11 +86,81 @@ const labels = {
   reconnectRequired: "다시 연결해 주세요",
   temporarilyUnavailable: "잠시 연결할 수 없어요",
 };
-const windows = [
-  ["07:00", "22:00"],
-  ["09:00", "21:00"],
-  ["06:00", "23:59"],
-] as const;
+const hours = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, "0"));
+const minutes = ["00", "10", "20", "30", "40", "50"];
+/** Snap a stored time (e.g. an older 23:59) onto the wheel's 10-minute grid. */
+const onGrid = (t: string) => {
+  const [h, m] = t.split(":");
+  return [h, String(Math.min(50, Math.floor(Number(m) / 10) * 10)).padStart(2, "0")] as const;
+};
+
+/** Pick the card hours freely with four wheels: start hour·minute, end hour·minute. */
+function WindowSheet({
+  start,
+  end,
+  onClose,
+  onSave,
+}: {
+  start: string;
+  end: string;
+  onClose: () => void;
+  onSave: (start: string, end: string) => void;
+}) {
+  const [[sh, sm], setStart] = useState(() => onGrid(start));
+  const [[eh, em], setEnd] = useState(() => onGrid(end));
+  const from = `${sh}:${sm}`;
+  const to = `${eh}:${em}`;
+  const ok = from < to;
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={w.scrim} accessibilityLabel="닫기" onPress={onClose} />
+      <View style={w.sheet}>
+        <View style={w.grabber} />
+        <Text style={w.title}>카드를 보여 줄 시간</Text>
+        <View style={w.row}>
+          {[
+            { label: "시작", h: sh, m: sm, set: (h: string, m: string) => setStart([h, m]) },
+            { label: "끝", h: eh, m: em, set: (h: string, m: string) => setEnd([h, m]) },
+          ].map((t, i) => (
+            <View key={t.label} style={{ flexDirection: "row", alignItems: "center" }}>
+              {i === 1 && <Text style={w.dash}>–</Text>}
+              <View style={{ alignItems: "center", gap: 4 }}>
+                <Text style={w.label}>{t.label}</Text>
+                <View style={w.pair}>
+                  <Wheel label={`${t.label} 시`} values={hours} value={t.h} onChange={(h) => t.set(h, t.m)} />
+                  <Text style={w.colon}>:</Text>
+                  <Wheel label={`${t.label} 분`} values={minutes} value={t.m} onChange={(m) => t.set(t.h, m)} />
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+        <Text style={[w.hint, ok && { opacity: 0 }]}>끝이 시작보다 늦어야 해요</Text>
+        <Button label="저장" disabled={!ok} onPress={() => onSave(from, to)} />
+      </View>
+    </Modal>
+  );
+}
+const w = StyleSheet.create({
+  scrim: { flex: 1, backgroundColor: "rgba(18,21,19,0.35)" },
+  sheet: {
+    backgroundColor: colors.band,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 24,
+    paddingTop: 10,
+    paddingBottom: 32,
+    gap: 12,
+  },
+  grabber: { alignSelf: "center", width: 36, height: 4, borderRadius: 2, backgroundColor: colors.bandLine, marginBottom: 8 },
+  title: { fontFamily: fonts.serif, fontSize: 22, lineHeight: 30, color: colors.ink },
+  row: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
+  label: { ...type.label, color: colors.bandLabel },
+  pair: { flexDirection: "row", alignItems: "center" },
+  colon: { fontFamily: fonts.serif, fontSize: 22, color: colors.ink, marginHorizontal: 2 },
+  dash: { fontFamily: fonts.serif, fontSize: 22, color: colors.bandText2, marginHorizontal: 10, marginTop: 24 },
+  hint: { ...type.small, textAlign: "center", color: colors.danger },
+});
 
 export default function Settings() {
   const { repo, snapshot, refresh, auth, profiles, refreshAuth } = useApp();
@@ -183,17 +254,7 @@ export default function Settings() {
       ],
     );
   }
-  function pickWindow() {
-    Alert.alert(
-      "카드를 보여 줄 시간",
-      "이 시간 밖에는 잠금 화면에 카드를 놓지 않아요. 위젯은 계속 보여요.",
-      windows.map(([start, end]) => ({
-        text: `${start} – ${end}`,
-        onPress: () =>
-          void run(() => repo.updateSettings({ gapStart: start, gapEnd: end })),
-      })),
-    );
-  }
+  const [windowOpen, setWindowOpen] = useState(false);
   const currentProfile = profiles.find((p) => p.profileId === auth.profileId);
 
   return (
@@ -269,7 +330,7 @@ export default function Settings() {
         <Row
           label="카드를 보여 줄 시간"
           value={`${settings.gapStart} – ${settings.gapEnd}`}
-          onPress={pickWindow}
+          onPress={() => setWindowOpen(true)}
           last={!canPin}
         />
         {canPin && (
@@ -421,6 +482,17 @@ export default function Settings() {
       </View>
 
       {!!error && <Message text={error} error />}
+      {windowOpen && (
+        <WindowSheet
+          start={settings.gapStart}
+          end={settings.gapEnd}
+          onClose={() => setWindowOpen(false)}
+          onSave={(gapStart, gapEnd) => {
+            setWindowOpen(false);
+            void run(() => repo.updateSettings({ gapStart, gapEnd }));
+          }}
+        />
+      )}
     </Screen>
   );
 }
