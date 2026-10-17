@@ -43,9 +43,15 @@ class LayoutTest {
        if(b.height()>=maxOf(minimum,minimumTouch)) reached.add(o.contentDescription)
      }
      if(reached.size>=4) break // Bundled application questions have four choices.
-     val scroll=d.findObject(By.scrollable(true)) ?: break
+     // A question may contain a nested HorizontalScrollView for source code.
+     // It can be reported first, even with clipped/inverted visible bounds.
+     val scroll=d.wait(Until.findObject(By.clazz("android.widget.ScrollView").scrollable(true)),5000)
+     println("Layout probe step=$step reached=${reached.size} scroll=${scroll?.className} bounds=${scroll?.visibleBounds}")
+     if(scroll==null) break
      scroll.setGestureMargin((24*density).toInt())
-     if(!scroll.scroll(Direction.DOWN,0.55f)) {
+     val more=scroll.scroll(Direction.DOWN,0.55f)
+     println("Layout probe scrollMore=$more bounds=${scroll.visibleBounds}")
+     if(!more) {
        for(o in d.findObjects(By.descContains("번, ")))
          if(o.visibleBounds.height()>=maxOf(minimum,minimumTouch)) reached.add(o.contentDescription)
        break

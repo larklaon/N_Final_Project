@@ -1,5 +1,14 @@
 # 개발 기록
 
+## 2026-10-18 — V3.RCA — 회전 검사와 native 크래시 분리 분석
+
+- 분석: 실제 `libreactnative.so` BuildId와 tombstone 일치 확인, `pullTransaction+524`를 역어셈블하여 delegate의 `shouldOverridePullTransaction()` 간접 호출에서 heap 주소로 분기함을 확인했다.
+- 유력 원인: 실제 설치된 screens4.26.2의 비동기 listener 초기화에 mutex가 없고 initialize/onHostResume 경로가 경쟁할 수 있다. 공식 PR #4413·이슈 #4654와 일치한다. 해당 실행의 경쟁 직접 계측/패치 A/B는 하지 않아 최종 인과 확정과 구분한다. 앱 소스·의존성 수정 없이 분석했다.
+- 별도 검사 오류 확정: LayoutTest가 `By.scrollable(true)`로 잘린 코드 예제 HorizontalScrollView를 선택하고 DOWN 스크롤 false에서 중단했다. 실제 vertical ScrollView를 명시하도록 수정하고 선택 클래스·bounds·반환값 진단을 추가했다.
+- 검증: 일반 실행 동일 PID에서 세로→가로와 입력 swipe 4회로 네 선택지 도달. 자동 검사는 잘못된 선택자로 0/4 실패 재현 후, 수정된 선택자로 **가로100% OK(1 test), 50.251s**. 타입·린트·AndroidTest APK 빌드 통과. UI 동작/데이터/토큰 변경 없음, display 설정 원복.
+- 상세: `docs/ROTATION_ANALYSIS.md`. 로컬 ignored artifacts/rotation-analysis에 바이너리 대조·회전 XML/캡처·수정 전후 로그 보존.
+- 남은 일: SDK57 호환 범위에서 공식 screens 네이티브 패치 적용·반복 cold start/화면 전환 검증. 드문 크래시가 해결됐다고 보고하지 않는다. 이번 단계는 원인 분석과 검사 도구 정정이다.
+
 ## 2026-10-18 — V3.FIX — 종료 검수 R1–R4 수정
 
 - 상태: 보고서의 4건 구현·회귀 검증 완료. 가로 회전 자동 검사는 별도 미해결로 남는다.
