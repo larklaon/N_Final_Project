@@ -63,12 +63,8 @@ export function Onboarding() {
           <Text accessibilityRole="header" style={[type.answerLong, s.ink, { fontSize: 32, lineHeight: 42 }]}>
             공부한다고{"\n"}착각하는 앱.
           </Text>
-          <BandBody>
-            잠금 화면에서 스치듯 조각을 보고, 앱에서는 그 조각을 맞춰요. 나중에
-            제대로 공부할 때 &quot;이거 본 적 있다&quot; 싶게요.
-          </BandBody>
+          <BandBody>잠금 화면에서 스치고, 앱에서 맞춰요.</BandBody>
         </Band>
-        <DarkNote icon="phone-portrait-outline">하루 몇 분이면 충분해요. 나머지는 잠금 화면이 챙겨요.</DarkNote>
       </DarkScreen>
     );
   if (step === 1)
@@ -88,7 +84,6 @@ export function Onboarding() {
             }}
           />
         </Band>
-        <DarkNote icon="layers-outline">지금은 한 번에 한 과목씩이에요. 설정에서 언제든 바꿀 수 있어요.</DarkNote>
       </DarkScreen>
     );
   if (step === 2)
@@ -110,7 +105,6 @@ export function Onboarding() {
             ))}
           </View>
         </Band>
-        <DarkNote icon="time-outline">한 문제는 1분이면 충분해요. 설정에서 바꿀 수 있어요.</DarkNote>
       </DarkScreen>
     );
   if (step === 3)
@@ -128,14 +122,8 @@ export function Onboarding() {
           <Text accessibilityRole="header" style={[type.question, s.ink]}>
             잠금 화면에 카드를 놓을까요?
           </Text>
-          <BandBody>
-            소리도 진동도 없어요. 폰을 켜면 짧은 문제가 놓여 있고, 탭 한 번으로
-            답해요. 답한 것도 학습 기록에 남아요.
-          </BandBody>
+          <BandBody>소리도 진동도 없이, 폰을 켜면 놓여 있어요.</BandBody>
         </Band>
-        <DarkNote icon="notifications-off-outline">
-          알림 권한이 필요해요. 학습하러 오라고 부르는 알림은 보내지 않아요.
-        </DarkNote>
         {!!cardError && <DarkNote icon="alert-circle-outline">{cardError}</DarkNote>}
       </DarkScreen>
     );
@@ -153,12 +141,8 @@ export function Onboarding() {
         <Text accessibilityRole="header" style={[type.question, s.ink]}>
           AI 코치를 붙일까요?
         </Text>
-        <BandBody>
-          ChatGPT를 연결하면 AI가 내 해상도를 보고 7일 계획을 짜 주고, 막힌 문제를
-          그 자리에서 물어볼 수 있어요.
-        </BandBody>
+        <BandBody>ChatGPT를 연결하면 계획을 짜 주고, 막힌 문제를 바로 물어볼 수 있어요.</BandBody>
       </Band>
-      <DarkNote icon="shuffle-outline">연결하지 않아도 문제는 무작위로 계속 나와요.</DarkNote>
     </DarkScreen>
   );
 }

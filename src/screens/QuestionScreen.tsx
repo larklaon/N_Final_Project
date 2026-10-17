@@ -26,7 +26,6 @@ import {
 } from "../components/ui";
 import { useApp } from "../platform/AppProvider";
 import { dailyCount, fittedToday, planConcept } from "../domain/selection";
-import { planDay } from "../domain/plan";
 import { usePlan } from "../services/ai/plan";
 import { useProfileModels } from "../services/ai/useProfileModels";
 import { puzzle, seenPieceUsed, whenSeen } from "../domain/puzzle";
@@ -101,7 +100,6 @@ export function QuestionScreen() {
   const { open, overlay } = useGapTransition();
   const { models } = useProfileModels(auth, refreshAuth);
   const { plan, ensure } = usePlan(repo, auth, models, snapshot.memoryRevision, refresh);
-  const today = planDay(plan, now);
   const canAsk = auth.status === "ready";
   const learner = snapshot.learnerId;
   const [stored, setLocal] = useState<Local>({
@@ -229,17 +227,10 @@ export function QuestionScreen() {
             <Text style={[type.title, s.bandText, { fontSize: 34, lineHeight: 44 }]}>
               {finished ? "오늘 몫은 끝." : "지금은 쉬어 가요."}
             </Text>
-            <BandBody>
-              {today.length
-                ? `새로 맞춘 조각 · ${today.map((c) => c.title).join(", ")}`
-                : "복습할 조각도, 새로 열 조각도 지금은 없어요."}
-            </BandBody>
+            {!!today.length && (
+              <BandBody>{`새로 맞춘 조각 · ${today.map((c) => c.title).join(", ")}`}</BandBody>
+            )}
           </Band>
-          <DarkNote icon="phone-portrait-outline">
-            {snapshot.settings.gapEnabled
-              ? "나머지는 잠금 화면에서 조금씩 이어져요."
-              : "설정에서 잠금 화면 카드를 켜면 틈틈이 이어져요."}
-          </DarkNote>
           {!!error && <DarkNote icon="alert-circle-outline">{error}</DarkNote>}
         </DarkScreen>
         {overlay}
@@ -344,26 +335,10 @@ export function QuestionScreen() {
             <BandBody>{quiz.explanation}</BandBody>
           </Band>
         )}
-        {!answered && !!today?.note && (
-          <DarkNote icon="sparkles-outline">{today.note}</DarkNote>
-        )}
-        {answered && !answered.graded && (
-          <DarkNote icon="information-circle-outline">
-            연습이라 진도와 복습 일정에는 반영하지 않았어요.
-          </DarkNote>
-        )}
         {used && (
           <DarkNote icon="eye-outline">
-            {whenSeen(used.lastSeenAt, now)} 스치듯 본{" "}
-            <Text style={{ color: colors.inkText }}>&apos;{used.title}&apos;</Text> 조각이 이
-            문제에 쓰였어요.
-          </DarkNote>
-        )}
-        {answered && answered.graded && !answered.correct && (
-          <DarkNote icon="refresh-outline">
-            {snapshot.settings.gapEnabled
-              ? "이 조각은 내일 잠금 화면에 다시 놓여요."
-              : "이 조각은 잠시 뒤 다시 나와요."}
+            {whenSeen(used.lastSeenAt, now)} 스친 조각{" "}
+            <Text style={{ color: colors.inkText }}>&apos;{used.title}&apos;</Text>
           </DarkNote>
         )}
         {!!error && <DarkNote icon="alert-circle-outline">{error}</DarkNote>}

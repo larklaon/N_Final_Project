@@ -290,7 +290,6 @@ function AskAiScreen() {
         {messages.length === 0 && !busy && !question && (
           <View style={s.empty}>
             <Text style={s.emptyTitle}>{concept.title}에서 막힌 곳을 물어보세요.</Text>
-            <Text style={s.emptyBody}>설명에서 헷갈리는 문장을 길게 눌러 끌어 오면 그 부분부터 풀어 줘요.</Text>
           </View>
         )}
         {messages.map((m) => (

@@ -35,9 +35,11 @@ function CardPreview({ card, hours }: { card: GapPreview; hours: string }) {
           <Text style={p.meta}>틈지식 · {card.area}</Text>
         </View>
         <View style={p.row}>
-          <Text style={p.prompt} numberOfLines={2}>
-            {card.prompt}
-          </Text>
+          <View style={p.band}>
+            <Text style={p.prompt} numberOfLines={2}>
+              {card.prompt}
+            </Text>
+          </View>
           {card.type === "ox" &&
             card.options.map((o) => (
               <View key={o.id} style={p.ox}>
@@ -46,11 +48,7 @@ function CardPreview({ card, hours }: { card: GapPreview; hours: string }) {
             ))}
         </View>
       </View>
-      <Text style={p.caption}>
-        {card.onLockScreen
-          ? "지금 잠금 화면에 이렇게 놓여 있어요. 화면을 껐다 켜면 보여요."
-          : `지금은 숨겨져 있어요. ${hours} 사이에 다시 놓여요.`}
-      </Text>
+      {!card.onLockScreen && <Text style={p.caption}>숨겨져 있어요 · {hours}</Text>}
     </View>
   );
 }
@@ -72,9 +70,10 @@ const p = StyleSheet.create({
   slit: { width: 14, height: 5, backgroundColor: "#FFFFFF", transform: [{ skewY: "-12deg" }] },
   meta: { ...type.small, fontSize: 13, color: colors.bandText2 },
   row: { flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 32 },
-  prompt: { flex: 1, fontFamily: fonts.semibold, fontSize: 15, lineHeight: 21, color: colors.ink },
-  ox: { width: 40, height: 36, borderRadius: 8, borderWidth: 1, borderColor: "rgba(18,21,19,0.25)", alignItems: "center", justifyContent: "center" },
-  oxText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
+  band: { flex: 1, backgroundColor: colors.band, paddingHorizontal: 12, paddingVertical: 6 },
+  prompt: { fontFamily: fonts.serif, fontSize: 14, lineHeight: 20, color: colors.ink },
+  ox: { width: 40, height: 36, borderRadius: 9, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" },
+  oxText: { fontFamily: fonts.serif, fontSize: 16, color: colors.band },
   caption: { ...type.small, fontSize: 13, color: colors.bandText2 },
 });
 
@@ -225,7 +224,6 @@ export default function Settings() {
         <SectionLabel>틈새 카드</SectionLabel>
         <Row
           label="잠금 화면 카드"
-          sub="소리·진동 없이 놓여만 있어요"
           right={
             <Toggle
               label="잠금 화면 카드"
@@ -236,14 +234,13 @@ export default function Settings() {
                   setNotice("");
                   if (on) {
                     await enableGap(repo);
-                    setNotice("잠금 화면에 카드를 놓았어요.");
+                    setNotice(String(Date.now())); // re-reads the preview
                   } else repo.updateSettings({ gapEnabled: false });
                 })
               }
             />
           }
         />
-        {settings.gapEnabled && !!notice && <Message text={notice} />}
         {settings.gapEnabled && permission !== false && preview && (
           <CardPreview card={preview} hours={`${settings.gapStart}–${settings.gapEnd}`} />
         )}
@@ -278,7 +275,6 @@ export default function Settings() {
         {canPin && (
           <Row
             label="홈 화면에 위젯 놓기"
-            sub="같은 카드에 홈 화면에서 바로 답해요"
             last
             onPress={() => void getGap()?.pinWidget()}
           />
@@ -425,10 +421,6 @@ export default function Settings() {
       </View>
 
       {!!error && <Message text={error} error />}
-      <Small>
-        학습 기록은 이 기기에만 저장돼요. 이름·이메일·ChatGPT의 기존 대화는 학습
-        AI에 보내지 않아요.
-      </Small>
     </Screen>
   );
 }
