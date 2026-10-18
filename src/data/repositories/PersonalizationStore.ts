@@ -630,6 +630,100 @@ export class PersonalizationStore {
     );
   }
 
+  /* ───────────── C5: check questions ───────────── */
+
+  /** Approved, unexpired check questions of a memory that were never given to the learner. */
+  unservedChecks(learnerId: string, memoryId: string, now = this.clock()): GeneratedRow[] {
+    return this.db
+      .getAllSync<Parameters<PersonalizationStore["parse"]>[0]>(
+        `SELECT ${PersonalizationStore.columns} FROM generated_questions g WHERE learnerId=? AND memoryId=? AND kind='check' AND status='approved' AND expiresAt>? AND NOT EXISTS (SELECT 1 FROM check_assignments a WHERE a.learnerId=g.learnerId AND a.quizId='ai:'||g.id) ORDER BY createdAt`,
+        learnerId,
+        memoryId,
+        now,
+      )
+      .map((r) => this.parse(r));
+  }
+  /** Today's check slot, answered or not. */
+  checkSlot(learnerId: string, date: string) {
+    return this.db.getFirstSync<{ sessionId: string; quizId: string; memoryId: string; assignedAt: number }>(
+      "SELECT sessionId,quizId,memoryId,assignedAt FROM check_assignments WHERE learnerId=? AND localDate=?",
+      learnerId,
+      date,
+    );
+  }
+  /**
+   * Takes the day's single check slot and counts it as served. Inside the caller's
+   * transaction; false when the slot or today's served quota is already used.
+   */
+  claimCheckSlot(learnerId: string, date: string, sessionId: string, quizId: string, memoryId: string) {
+    if (this.checkSlot(learnerId, date)) return false;
+    if (!this.reserveIn(learnerId, "checkServedCount", LIMITS.checkServedPerDay)) return false;
+    this.db.runSync(
+      "INSERT INTO check_assignments VALUES (?,?,?,?,?,?)",
+      learnerId,
+      date,
+      sessionId,
+      quizId,
+      memoryId,
+      this.clock(),
+    );
+    return true;
+  }
+  /**
+   * A graded check answer becomes check-right/check-wrong evidence of its memory, once per
+   * attempt. The attempt is marked processed so the extractor does not count it again.
+   * Inside the caller's transaction.
+   */
+  recordCheck(learnerId: string, memoryId: string, attemptId: string, quizId: string, correct: boolean, at: number) {
+    const m = this.db.getFirstSync<{ status: MemoryStatus }>(
+      "SELECT status FROM confusion_memories WHERE id=? AND learnerId=?",
+      memoryId,
+      learnerId,
+    );
+    this.db.runSync("INSERT OR IGNORE INTO evidence_checkpoints VALUES (?,?,?,?,0)", learnerId, "attempt", attemptId, at);
+    if (!m || m.status === "archived") return false;
+    const added = this.db.runSync(
+      "INSERT OR IGNORE INTO confusion_evidence VALUES (?,?,?,?,?,?,?,?,?,?)",
+      this.uuid(),
+      memoryId,
+      learnerId,
+      "attempt",
+      attemptId,
+      "1",
+      quizId,
+      localDate(at),
+      at,
+      correct ? "check-right" : "check-wrong",
+    ).changes;
+    if (added !== 1) return false;
+    this.db.runSync(
+      "UPDATE confusion_memories SET lastCheckAt=?,lastEvidenceAt=MAX(lastEvidenceAt,?),revision=revision+1 WHERE id=?",
+      at,
+      at,
+      memoryId,
+    );
+    this.restatus(memoryId);
+    return true;
+  }
+  /** What the 7-day coach may know: active memories as short summaries, never chat text. */
+  planMemories(learnerId: string, subjectId: string, now = this.clock()) {
+    return this.memories(learnerId, subjectId)
+      .filter((m) => m.status === "active")
+      .slice(0, LIMITS.memoriesForPlan)
+      .map((m) => ({
+        conceptId: m.conceptId,
+        summary: m.summary,
+        status: m.status,
+        evidence: this.db
+          .getAllSync<{ evidenceType: string }>(
+            "SELECT DISTINCT evidenceType FROM confusion_evidence WHERE memoryId=? ORDER BY evidenceType",
+            m.id,
+          )
+          .map((r) => r.evidenceType),
+        daysSinceLast: Math.floor((now - m.lastEvidenceAt) / 86_400_000),
+      }));
+  }
+
   /** "Reset learning" removes personal V4 records but keeps today's budget rows. */
   resetLearner(learnerId: string) {
     for (const table of [

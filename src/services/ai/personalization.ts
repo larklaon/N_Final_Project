@@ -3,6 +3,7 @@ import { packOf } from "../../data/content/packs";
 import type { LearningRepository } from "../../data/repositories/LearningRepository";
 import {
   LIMITS,
+  checkTimingOk,
   approvedByReview,
   basis,
   contentInstructions,
@@ -40,8 +41,7 @@ export function checkReady(repo: LearningRepository, memoryId: string, now: numb
   const m = repo.personal.memory(learner, memoryId);
   if (!m || (m.status !== "active" && m.status !== "improving")) return false;
   const answer = repo.personal.firstCardAnswer(learner, memoryId);
-  if (!answer) return false;
-  return now - answer.answeredAt >= LIMITS.checkAfterMs && localDate(now) !== answer.localDate;
+  return checkTimingOk(answer?.answeredAt ?? null, m.lastCheckAt, now);
 }
 
 /** Which memories need a card or a check, within today's remaining quota. */
@@ -57,7 +57,7 @@ export function generationTargets(repo: LearningRepository, now: number): Genera
     const skill = skillFor(m.conceptId, m.skillKey);
     if (!skill) continue;
     const wantGap = gapLeft > 0 && repo.personal.forMemory(learner, m.id, "gap", now).length === 0;
-    const wantCheck = checkLeft > 0 && checkReady(repo, m.id, now) && repo.personal.forMemory(learner, m.id, "check", now).length === 0;
+    const wantCheck = checkLeft > 0 && checkReady(repo, m.id, now) && repo.personal.unservedChecks(learner, m.id, now).length === 0;
     if (!wantGap && !wantCheck) continue;
     if (wantGap) gapLeft--;
     if (wantCheck) checkLeft--;

@@ -6,6 +6,8 @@ import { advanceGap, requeueGap } from "../../domain/gap";
 import { termQuestion } from "../../domain/term";
 import { planDay, type Plan } from "../../domain/plan";
 import type { DeckExtras } from "../../domain/gap";
+import { checkTimingOk } from "../../domain/personalization";
+import { dailyCount } from "../../domain/selection";
 import {
   applyAnswer,
   deltaFor,
@@ -274,6 +276,17 @@ export class LearningRepository {
   }
   clearPlanDirty(learner: string, subjectId: string) {
     this.db.runSync("DELETE FROM app_meta WHERE key=?", `planDirty:${learner}:${subjectId}`);
+  }
+  /** A dirty plan may refresh itself once per local day (personalization on). */
+  planRefreshDue(learner = this.activeLearner) {
+    const s = this.snapshot(learner);
+    const subject = packOf(s.settings.subjectId).id;
+    if (!s.settings.personalizationEnabled || !s.settings.personalizationConsentAt) return false;
+    return this.planDirty(learner, subject) && this.meta(`planAuto:${learner}:${subject}`) !== localDate(this.clock());
+  }
+  notePlanRefresh(learner = this.activeLearner) {
+    const subject = packOf(this.snapshot(learner).settings.subjectId).id;
+    this.setMeta(`planAuto:${learner}:${subject}`, localDate(this.clock()));
   }
   selectProfile(profileId: string | null) {
     const previousScope = this.learningScope;
@@ -606,6 +619,115 @@ export class LearningRepository {
     );
     return session;
   }
+  /** An unanswered regular session of this piece's current occurrence, to finish first. */
+  hasOpenSession(conceptId: string) {
+    const s = this.snapshot();
+    const occurrence = occurrenceId(s.learnerId, conceptId, s.progress[conceptId]?.revision ?? 0);
+    return this.db
+      .getAllSync<{ data: string }>(
+        "SELECT data FROM learning_sessions WHERE learnerId=? AND occurrenceId=?",
+        s.learnerId,
+        occurrence,
+      )
+      .some((r) => {
+        const row = JSON.parse(r.data) as Session;
+        return !row.answer && !row.practice && !row.checkMemoryId;
+      });
+  }
+  /**
+   * V4 today's check question, inside the daily goal. One slot a day, taken atomically: an
+   * unanswered check resumes (an earlier day's one takes today's slot), an answered one
+   * blocks another. Only for an open memory whose piece can be graded now, a day and a
+   * different date after the card answer and the previous check. Null means a normal question.
+   */
+  checkSession(): Session | null {
+    const s = this.snapshot();
+    const now = this.clock();
+    const date = localDate(now);
+    const learner = s.learnerId;
+    if (!s.settings.personalizationEnabled || !s.settings.personalizationConsentAt) return null;
+    // It takes one of today's goal slots; once the goal is met nothing more is pushed.
+    if (dailyCount(s, now) >= s.settings.dailyGoal) return null;
+    const subject = packOf(s.settings.subjectId).id;
+    const load = (id: string) => {
+      const row = this.db.getFirstSync<{ data: string }>(
+        "SELECT data FROM learning_sessions WHERE id=? AND learnerId=?",
+        id,
+        learner,
+      );
+      return row ? (JSON.parse(row.data) as Session) : null;
+    };
+    const usable = (x: Session) => {
+      const p = s.progress[x.conceptId];
+      if (!s.concepts.some((c) => c.id === x.conceptId) || !canGrade(p, x.revision, now)) return false;
+      try {
+        this.quiz(x.quizId, learner);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const slot = this.personal.checkSlot(learner, date);
+    if (slot) {
+      const x = load(slot.sessionId);
+      return x && !x.answer && usable(x) ? x : null;
+    }
+    let picked: Session | null = null;
+    this.db.withTransactionSync(() => {
+      if (this.personal.checkSlot(learner, date)) return;
+      // A check left open on an earlier day is the one for today too.
+      const left = this.db
+        .getAllSync<{ data: string }>(
+          "SELECT s.data FROM learning_sessions s JOIN check_assignments a ON a.sessionId=s.id WHERE s.learnerId=? ORDER BY a.assignedAt DESC LIMIT 1",
+          learner,
+        )
+        .map((r) => JSON.parse(r.data) as Session)
+        .find((x) => !x.answer && usable(x));
+      if (left) {
+        if (this.personal.claimCheckSlot(learner, date, left.id, left.quizId, left.checkMemoryId!)) picked = left;
+        return;
+      }
+      for (const m of this.personal.memories(learner, subject)) {
+        if (m.status !== "active" && m.status !== "improving") continue;
+        const answer = this.personal.firstCardAnswer(learner, m.id);
+        if (!checkTimingOk(answer?.answeredAt ?? null, m.lastCheckAt, now)) continue;
+        const p = s.progress[m.conceptId];
+        const revision = p?.revision ?? 0;
+        if (!canGrade(p, revision, now) || this.hasOpenSession(m.conceptId)) continue;
+        const check = this.personal.unservedChecks(learner, m.id, now)[0];
+        if (!check) continue;
+        const options = [...check.quiz.options];
+        for (let i = options.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [options[i], options[j]] = [options[j], options[i]];
+        }
+        const session: Session = {
+          id: this.uuid(),
+          learnerId: learner,
+          conceptId: m.conceptId,
+          quizId: check.quiz.id,
+          options,
+          occurrenceId: occurrenceId(learner, m.conceptId, revision),
+          revision,
+          practice: false,
+          startedAt: now,
+          checkMemoryId: m.id,
+        };
+        if (!this.personal.claimCheckSlot(learner, date, session.id, session.quizId, m.id)) return;
+        this.db.runSync(
+          "INSERT INTO learning_sessions VALUES (?,?,?,?,?)",
+          session.id,
+          learner,
+          session.conceptId,
+          session.occurrenceId,
+          JSON.stringify(session),
+        );
+        picked = session;
+        return;
+      }
+    });
+    return picked;
+  }
   submit(sessionId: string, selected: string): Session["answer"] {
     let answer: Session["answer"];
     this.db.withTransactionSync(() => {
@@ -637,9 +759,10 @@ export class LearningRepository {
       answer = { selected, correct, graded };
       session.answer = answer;
       this.applyKnowledge(learner, quiz, correct, now);
+      const attemptId = this.uuid();
       this.db.runSync(
         "INSERT INTO attempts VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-        this.uuid(),
+        attemptId,
         learner,
         sessionId,
         session.conceptId,
@@ -652,6 +775,9 @@ export class LearningRepository {
         date,
         Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown",
       );
+      // V4: only a graded check counts toward its memory; practice and revisits do not.
+      if (graded && session.checkMemoryId)
+        this.personal.recordCheck(learner, session.checkMemoryId, attemptId, quiz.id, correct, now);
       if (graded) {
         const next = advanceProgress(p, correct, now, date, quiz.type);
         next.distinctCorrectDays = this.db.getFirstSync<{ n: number }>(

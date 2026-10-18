@@ -24,8 +24,10 @@ export async function requestPlan(
   if (!model) throw Error("no_model");
   const learner = snapshot.learnerId;
   const subject = packOf(snapshot.settings.subjectId).id;
+  const personal = snapshot.settings.personalizationEnabled && !!snapshot.settings.personalizationConsentAt;
+  const confusions = personal ? repo.personal.planMemories(learner, subject, now) : [];
   const input = [
-    { role: "user" as const, content: JSON.stringify(planInput(snapshot, now, repo.plan())) },
+    { role: "user" as const, content: JSON.stringify(planInput(snapshot, now, repo.plan(), confusions)) },
   ];
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -55,6 +57,7 @@ export async function requestPlan(
         continue; // Retry only malformed output, never a stale or refused save.
       }
       if (!repo.savePlan(learner, subject, plan, scope)) throw Error("plan_invalidated");
+      repo.clearPlanDirty(learner, subject);
       return plan;
     }
     throw lastError;
@@ -86,9 +89,13 @@ export function usePlan(
       const current = repo.plan();
       const now = Date.now();
       if (!ready || active.current) return;
-      if (!force && !needsPlan(current, repo.snapshot(), now)) return;
+      // New confusion memories refresh the plan at most once a day, never as a chain.
+      const needed = force || needsPlan(current, repo.snapshot(), now);
+      const dirty = !needed && repo.planRefreshDue() && !!current && now - current.createdAt >= 10 * 60_000;
+      if (!needed && !dirty) return;
       if (now - lastTry.current < 10 * 60_000) return;
       lastTry.current = now;
+      if (dirty) repo.notePlanRefresh();
       const controller = new AbortController();
       const scope = repo.learningScope;
       active.current = controller;

@@ -1,6 +1,7 @@
 import basisJson from "../data/content/generation-basis.json";
 import { hash } from "./term";
 import { fitsLockCard } from "./fit";
+import { localDate } from "./review";
 
 /**
  * V4 personalization: confusion memories, AI-made gap cards and check questions.
@@ -407,4 +408,16 @@ export function approvedByReview(text: string, drafts: Draft[]): { draft: Draft;
     out.push({ draft, review: { index: r.index, answer, factIds: cited, verdict: "supported" } });
   }
   return out;
+}
+
+/* ───────────── C5: check timing ───────────── */
+
+/**
+ * A check question comes at least a day and on a different local date after the first real
+ * answer to the memory's card, and the same again after the previous check.
+ */
+export function checkTimingOk(cardAnswerAt: number | null, lastCheckAt: number | null, now: number) {
+  if (cardAnswerAt === null) return false;
+  const apart = (t: number) => now - t >= LIMITS.checkAfterMs && localDate(now) !== localDate(t);
+  return apart(cardAnswerAt) && (lastCheckAt === null || apart(lastCheckAt));
 }

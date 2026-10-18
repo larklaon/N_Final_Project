@@ -164,14 +164,16 @@ function ScopedQuestionScreen() {
   const opened = useMemo(() => {
     if (!target) return { session: null, error: "" };
     try {
-      return { session: repo.openSession(target.id), error: "" };
+      // V4: today's check question takes one goal slot, after a question already started.
+      const check = !extra && !repo.hasOpenSession(target.id) ? repo.checkSession() : null;
+      return { session: check ?? repo.openSession(target.id), error: "" };
     } catch {
       return {
         session: null,
         error: "문제를 열지 못했어요. 잠시 뒤 다시 시도해 주세요.",
       };
     }
-  }, [target, repo]);
+  }, [target, repo, extra]);
   const session = pinned ?? opened.session;
   const error = local.error || opened.error;
 
