@@ -265,6 +265,10 @@ test("settings reject unsupported goals, intervals and an empty card window", ()
   repo.updateSettings({ gapStart: "06:47", gapEnd: "01:23" });
   expect(repo.snapshot().settings).toMatchObject({ gapStart: "06:47", gapEnd: "01:23" });
   repo.updateSettings({ gapStart: "07:00", gapEnd: "22:00" });
+  // 방해 금지 is on by default (older saved settings too) and can be turned off on its own.
+  expect(repo.snapshot().settings.quietEnabled).toBe(true);
+  repo.updateSettings({ quietEnabled: false });
+  expect(repo.snapshot().settings).toMatchObject({ quietEnabled: false, gapStart: "07:00", gapEnd: "22:00" });
   repo.updateSettings({ dailyGoal: 10, gapIntervalMinutes: 60 });
   expect(repo.snapshot().settings).toMatchObject({
     dailyGoal: 10,

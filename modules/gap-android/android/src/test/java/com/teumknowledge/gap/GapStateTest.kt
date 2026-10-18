@@ -36,6 +36,10 @@ class GapStateTest {
     assertEquals(GapView.Hidden, s.view(true, 1 * 60 + 23))
     assertEquals(GapView.Hidden, s.view(true, 6 * 60 + 46))
     assertTrue(s.view(true, 6 * 60 + 47) is GapView.Question)
+    // With 방해 금지 off the window is not applied at all.
+    val anyHour = GapState().apply { configure(config(3).put("quiet", false), now) }
+    assertTrue(anyHour.view(true, 3 * 60) is GapView.Question)
+    assertTrue(anyHour.view(true, 23 * 60 + 59) is GapView.Question)
   }
 
   @Test fun answeringRecordsOneEventAndShowsResult() {

@@ -56,6 +56,8 @@ export type Settings = {
   gapIntervalMinutes: number;
   gapStart: string;
   gapEnd: string;
+  /** "방해 금지": when off, cards may appear at any hour and the window is not applied. */
+  quietEnabled: boolean;
   selectedModel: string | null;
   aiConsentAt: number | null;
   onboarded: boolean;

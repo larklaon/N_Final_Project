@@ -33,6 +33,47 @@ export const LIMITS = {
   summaryChars: 120,
 } as const;
 
+/**
+ * True only in a development build running on a device or emulator, never in a test run or a
+ * release. There the daily quotas and the day-long waits are shortened so the whole loop
+ * (card → answer → check → resolved) can be tried in one sitting.
+ */
+export const TESTING = typeof __DEV__ !== "undefined" && __DEV__ && process.env.NODE_ENV !== "test";
+export const RULES = TESTING
+  ? {
+      gapApprovedPerDay: 20,
+      checkApprovedPerDay: 20,
+      checkServedPerDay: 20,
+      attemptsPerDay: 1000,
+      dispatchesPerDay: 3000,
+      retryAfterMs: 0,
+      /** A check a minute after the card answer, on the same date. */
+      checkAfterMs: 60_000,
+      otherDate: false,
+      /** One check slot per minute instead of per day. */
+      checkSlot: (now: number) => `${localDate(now)}#${Math.floor(now / 60_000)}`,
+      /**
+       * A piece not due yet still gets its check, as practice: the review schedule is left
+       * alone, the answer still counts for the memory.
+       */
+      checkOnPractice: true,
+      /** An AI card whose piece is not in today's deck takes the first slot instead of waiting. */
+      cardAnywhere: true,
+    }
+  : {
+      gapApprovedPerDay: LIMITS.gapApprovedPerDay,
+      checkApprovedPerDay: LIMITS.checkApprovedPerDay,
+      checkServedPerDay: LIMITS.checkServedPerDay,
+      attemptsPerDay: LIMITS.pipelineAttemptsPerDay,
+      dispatchesPerDay: LIMITS.pipelineAttemptsPerDay * LIMITS.callsPerPipeline,
+      retryAfterMs: LIMITS.retryAfterMs,
+      checkAfterMs: LIMITS.checkAfterMs,
+      otherDate: true,
+      checkSlot: (now: number) => localDate(now),
+      checkOnPractice: false,
+      cardAnywhere: false,
+    };
+
 export const CONSENT_VERSION = "v4-1";
 export const PROMPT_VERSION = "v4-1";
 
@@ -242,7 +283,7 @@ export function memoryStatus(evidence: EvidenceRecord[]): Exclude<MemoryStatus, 
   for (let i = 0; i < rights.length; i++)
     for (let j = i + 1; j < rights.length; j++) {
       const [a, b] = [rights[i], rights[j]];
-      if (a.localDate !== b.localDate && a.quizId !== b.quizId && b.occurredAt - a.occurredAt >= LIMITS.checkAfterMs)
+      if ((a.localDate !== b.localDate || !RULES.otherDate) && a.quizId !== b.quizId && b.occurredAt - a.occurredAt >= RULES.checkAfterMs)
         return "resolved";
     }
   return "improving";
@@ -419,6 +460,6 @@ export function approvedByReview(text: string, drafts: Draft[]): { draft: Draft;
  */
 export function checkTimingOk(cardAnswerAt: number | null, lastCheckAt: number | null, now: number) {
   if (cardAnswerAt === null) return false;
-  const apart = (t: number) => now - t >= LIMITS.checkAfterMs && localDate(now) !== localDate(t);
+  const apart = (t: number) => now - t >= RULES.checkAfterMs && (!RULES.otherDate || localDate(now) !== localDate(t));
   return apart(cardAnswerAt) && (lastCheckAt === null || apart(lastCheckAt));
 }

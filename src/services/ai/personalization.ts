@@ -3,6 +3,7 @@ import { packOf } from "../../data/content/packs";
 import type { LearningRepository } from "../../data/repositories/LearningRepository";
 import {
   LIMITS,
+  RULES,
   checkTimingOk,
   approvedByReview,
   basis,
@@ -35,19 +36,6 @@ const skipped = (reason: string): PersonalizationResult => ({
   approvedCheck: 0,
 });
 
-/**
- * Daily caps on automatic work. A development build (never a test run or a release) lifts
- * them so testing is not locked out for the day; counts are still recorded as usual.
- */
-const testing = typeof __DEV__ !== "undefined" && __DEV__ && process.env.NODE_ENV !== "test";
-export const workLimits = testing
-  ? { attemptsPerDay: 1000, dispatchesPerDay: 3000, retryAfterMs: 0 }
-  : {
-      attemptsPerDay: LIMITS.pipelineAttemptsPerDay,
-      dispatchesPerDay: LIMITS.pipelineAttemptsPerDay * LIMITS.callsPerPipeline,
-      retryAfterMs: LIMITS.retryAfterMs,
-    };
-
 /** Can this learner's memory get a check question now? (PLAN_V4 §8.2) */
 export function checkReady(repo: LearningRepository, memoryId: string, now: number) {
   const learner = repo.activeLearner;
@@ -62,8 +50,8 @@ export function generationTargets(repo: LearningRepository, now: number): Genera
   const learner = repo.activeLearner;
   const subject = packOf(repo.snapshot().settings.subjectId).id;
   const budget = repo.personal.budget(learner);
-  let gapLeft = LIMITS.gapApprovedPerDay - budget.gapApprovedCount;
-  let checkLeft = LIMITS.checkApprovedPerDay - budget.checkApprovedCount;
+  let gapLeft = RULES.gapApprovedPerDay - budget.gapApprovedCount;
+  let checkLeft = RULES.checkApprovedPerDay - budget.checkApprovedCount;
   const out: GenerationTarget[] = [];
   for (const m of repo.personal.memories(learner, subject)) {
     if (m.status !== "active" && m.status !== "improving") continue;
@@ -119,7 +107,7 @@ export async function runPersonalization(
   repo.personal.archiveStale(owner.learnerId);
   repo.personal.expireOld(now);
   const last = repo.personal.lastJob(owner.learnerId);
-  if (last?.status === "failed" && now - last.updatedAt < workLimits.retryAfterMs) return skipped("retry_later");
+  if (last?.status === "failed" && now - last.updatedAt < RULES.retryAfterMs) return skipped("retry_later");
 
   const input = repo.extractionInput();
   const targetsBefore = generationTargets(repo, now);
@@ -133,14 +121,14 @@ export async function runPersonalization(
   ]);
   const job = repo.personal.startJob(owner, fp);
   if (!job) return skipped("already_done");
-  if (!repo.personal.reserve(owner.learnerId, "pipelineAttempts", workLimits.attemptsPerDay)) {
+  if (!repo.personal.reserve(owner.learnerId, "pipelineAttempts", RULES.attemptsPerDay)) {
     repo.personal.finishJob(job, "cancelled", "daily_limit");
     return skipped("daily_limit");
   }
 
   const call = async (instructions: string, payload: object) => {
     if (!current()) throw Error("invalidated");
-    if (!repo.personal.reserve(owner.learnerId, "dispatchCount", workLimits.dispatchesPerDay))
+    if (!repo.personal.reserve(owner.learnerId, "dispatchCount", RULES.dispatchesPerDay))
       throw Error("daily_limit");
     const text = await runRequest(
       "background",

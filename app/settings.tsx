@@ -57,7 +57,7 @@ function CardPreview({ card, hours }: { card: GapPreview; hours: string }) {
             ))}
         </View>
       </View>
-      {!card.onLockScreen && <Text style={p.caption}>방해 금지 중 · {hours}</Text>}
+      {!card.onLockScreen && !!hours && <Text style={p.caption}>방해 금지 중 · {hours}</Text>}
     </View>
   );
 }
@@ -199,7 +199,7 @@ export default function Settings() {
       void getGap()?.current().then(setPreview).catch(() => setPreview(null));
     }, 400);
     return () => clearTimeout(t);
-  }, [settings.gapEnabled, settings.gapStart, settings.gapEnd, revision, notice]);
+  }, [settings.gapEnabled, settings.gapStart, settings.gapEnd, settings.quietEnabled, revision, notice]);
 
   async function run(action: () => void | Promise<void>) {
     setBusy(true);
@@ -324,7 +324,7 @@ export default function Settings() {
           }
         />
         {settings.gapEnabled && permission !== false && preview && (
-          <CardPreview card={preview} hours={`${settings.gapEnd}–${settings.gapStart}`} />
+          <CardPreview card={preview} hours={settings.quietEnabled ? `${settings.gapEnd}–${settings.gapStart}` : ""} />
         )}
         {settings.gapEnabled && permission === false && (
           <Row
@@ -349,11 +349,25 @@ export default function Settings() {
           }
         />
         <Row
-          label="방해 금지 시간"
-          value={`${settings.gapEnd} – ${settings.gapStart}`}
-          onPress={() => setWindowOpen(true)}
-          last={!canPin}
+          label="방해 금지"
+          right={
+            <Toggle
+              label="방해 금지"
+              value={settings.quietEnabled}
+              disabled={busy}
+              onValueChange={(on) => void run(() => repo.updateSettings({ quietEnabled: on }))}
+            />
+          }
+          last={!canPin && !settings.quietEnabled}
         />
+        {settings.quietEnabled && (
+          <Row
+            label="방해 금지 시간"
+            value={`${settings.gapEnd} – ${settings.gapStart}`}
+            onPress={() => setWindowOpen(true)}
+            last={!canPin}
+          />
+        )}
         {canPin && (
           <Row
             label="홈 화면에 위젯 놓기"

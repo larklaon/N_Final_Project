@@ -2,6 +2,7 @@ import { localDate } from "../../domain/review";
 import {
   LIMITS,
   PROMPT_VERSION,
+  RULES,
   basis,
   basisFor,
   approvedFacts,
@@ -65,8 +66,8 @@ export type Owner = { learnerId: string; subjectId: string; scope: string };
 
 const timezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown";
 const quotaOf: Record<"gap" | "check", { field: BudgetField; limit: number }> = {
-  gap: { field: "gapApprovedCount", limit: LIMITS.gapApprovedPerDay },
-  check: { field: "checkApprovedCount", limit: LIMITS.checkApprovedPerDay },
+  gap: { field: "gapApprovedCount", limit: RULES.gapApprovedPerDay },
+  check: { field: "checkApprovedCount", limit: RULES.checkApprovedPerDay },
 };
 
 /**
@@ -672,7 +673,7 @@ export class PersonalizationStore {
    */
   claimCheckSlot(learnerId: string, date: string, sessionId: string, quizId: string, memoryId: string) {
     if (this.checkSlot(learnerId, date)) return false;
-    if (!this.reserveIn(learnerId, "checkServedCount", LIMITS.checkServedPerDay)) return false;
+    if (!this.reserveIn(learnerId, "checkServedCount", RULES.checkServedPerDay)) return false;
     this.db.runSync(
       "INSERT INTO check_assignments VALUES (?,?,?,?,?,?)",
       learnerId,

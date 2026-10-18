@@ -6,7 +6,7 @@ import { advanceGap, requeueGap } from "../../domain/gap";
 import { termQuestion } from "../../domain/term";
 import { planDay, type Plan } from "../../domain/plan";
 import type { DeckExtras } from "../../domain/gap";
-import { checkTimingOk } from "../../domain/personalization";
+import { RULES, checkTimingOk } from "../../domain/personalization";
 import { dailyCount } from "../../domain/selection";
 import {
   applyAnswer,
@@ -46,6 +46,7 @@ export const defaultSettings: Settings = {
   gapIntervalMinutes: 30,
   gapStart: "07:00",
   gapEnd: "22:00",
+  quietEnabled: true,
   selectedModel: null,
   aiConsentAt: null,
   onboarded: false,
@@ -643,7 +644,7 @@ export class LearningRepository {
   checkSession(): Session | null {
     const s = this.snapshot();
     const now = this.clock();
-    const date = localDate(now);
+    const date = RULES.checkSlot(now);
     const learner = s.learnerId;
     if (!s.settings.personalizationEnabled || !s.settings.personalizationConsentAt) return null;
     // It takes one of today's goal slots; once the goal is met nothing more is pushed.
@@ -661,7 +662,8 @@ export class LearningRepository {
       const m = x.checkMemoryId ? this.personal.memory(learner, x.checkMemoryId) : null;
       if (!m || (m.status !== "active" && m.status !== "improving")) return false;
       const p = s.progress[x.conceptId];
-      if (!s.concepts.some((c) => c.id === x.conceptId) || !canGrade(p, x.revision, now)) return false;
+      if (!s.concepts.some((c) => c.id === x.conceptId)) return false;
+      if (!RULES.checkOnPractice && !canGrade(p, x.revision, now)) return false;
       try {
         this.quiz(x.quizId, learner);
         return true;
@@ -695,7 +697,8 @@ export class LearningRepository {
         if (!checkTimingOk(answer?.answeredAt ?? null, m.lastCheckAt, now)) continue;
         const p = s.progress[m.conceptId];
         const revision = p?.revision ?? 0;
-        if (!canGrade(p, revision, now) || this.hasOpenSession(m.conceptId)) continue;
+        const gradable = canGrade(p, revision, now);
+        if ((!gradable && !RULES.checkOnPractice) || this.hasOpenSession(m.conceptId)) continue;
         const check = this.personal.unservedChecks(learner, m.id, now)[0];
         if (!check) continue;
         const options = [...check.quiz.options];
@@ -711,7 +714,7 @@ export class LearningRepository {
           options,
           occurrenceId: occurrenceId(learner, m.conceptId, revision),
           revision,
-          practice: false,
+          practice: !gradable,
           startedAt: now,
           checkMemoryId: m.id,
         };
@@ -778,7 +781,7 @@ export class LearningRepository {
         Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown",
       );
       // V4: only a graded check counts toward its memory; practice and revisits do not.
-      if (graded && session.checkMemoryId)
+      if ((graded || RULES.checkOnPractice) && session.checkMemoryId)
         this.personal.recordCheck(learner, session.checkMemoryId, attemptId, quiz.id, correct, now);
       if (graded) {
         const next = advanceProgress(p, correct, now, date, quiz.type);

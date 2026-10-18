@@ -9,6 +9,8 @@ export type GapConfig = {
   intervalMinutes: number;
   start: string;
   end: string;
+  /** Apply the start/end window (its complement is the quiet time). Missing means true. */
+  quiet?: boolean;
   deck: GapCard[];
 };
 export type GapPreview = {

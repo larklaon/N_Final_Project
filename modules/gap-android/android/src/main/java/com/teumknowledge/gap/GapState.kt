@@ -63,6 +63,7 @@ class GapState(val root: JSONObject = JSONObject()) {
   }
 
   fun inWindow(minuteOfDay: Int): Boolean {
+    if (!root.optBoolean("quiet", true)) return true
     fun parse(s: String, fallback: Int) = Regex("^(\\d{2}):(\\d{2})$").find(s)?.destructured
       ?.let { (h, m) -> h.toInt() * 60 + m.toInt() } ?: fallback
     val start = parse(root.optString("start"), 7 * 60)
@@ -123,7 +124,7 @@ class GapState(val root: JSONObject = JSONObject()) {
         JSONObject().put("card", c).put("answer", a)
       }
     } ?: root.optJSONObject("held")?.takeIf { h -> h.optJSONObject("card")?.let(sameLearner) == true }
-    for (key in listOf("enabled", "learnerId", "intervalMinutes", "start", "end", "deck"))
+    for (key in listOf("enabled", "learnerId", "intervalMinutes", "start", "end", "quiet", "deck"))
       root.put(key, config.opt(key) ?: JSONObject.NULL)
     root.put("index", 0)
     root.remove("answer")

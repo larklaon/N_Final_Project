@@ -1,6 +1,6 @@
 import { DAY } from "./review";
 import { shuffled, termQuestion } from "./term";
-import { LIMITS } from "./personalization";
+import { LIMITS, RULES } from "./personalization";
 import type { Concept, GapProgress, LearningSnapshot, Quiz } from "./types";
 
 const gapIntervals = [1, 3, 7];
@@ -175,7 +175,8 @@ function withGenerated(cards: GapCard[], s: LearningSnapshot, extras: DeckExtras
     if (q.layer !== "gap" || q.type !== "ox" || used.has(q.conceptId)) continue;
     const expiresAt = extras.generatedExpiresAt[q.id];
     if (!expiresAt || expiresAt <= now) continue;
-    const i = out.findIndex((c) => c.conceptId === q.conceptId);
+    let i = out.findIndex((c) => c.conceptId === q.conceptId);
+    if (i < 0 && RULES.cardAnywhere) i = out.findIndex((c, j) => c.origin !== "ai" && out[j + 1]?.origin !== "ai" && out[j - 1]?.origin !== "ai");
     if (i < 0) continue;
     if (out[i - 1]?.origin === "ai" || out[i + 1]?.origin === "ai") continue;
     const concept = s.concepts.find((c) => c.id === q.conceptId)!;
