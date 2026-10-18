@@ -35,6 +35,19 @@ const skipped = (reason: string): PersonalizationResult => ({
   approvedCheck: 0,
 });
 
+/**
+ * Daily caps on automatic work. A development build (never a test run or a release) lifts
+ * them so testing is not locked out for the day; counts are still recorded as usual.
+ */
+const testing = typeof __DEV__ !== "undefined" && __DEV__ && process.env.NODE_ENV !== "test";
+export const workLimits = testing
+  ? { attemptsPerDay: 1000, dispatchesPerDay: 3000, retryAfterMs: 0 }
+  : {
+      attemptsPerDay: LIMITS.pipelineAttemptsPerDay,
+      dispatchesPerDay: LIMITS.pipelineAttemptsPerDay * LIMITS.callsPerPipeline,
+      retryAfterMs: LIMITS.retryAfterMs,
+    };
+
 /** Can this learner's memory get a check question now? (PLAN_V4 §8.2) */
 export function checkReady(repo: LearningRepository, memoryId: string, now: number) {
   const learner = repo.activeLearner;
@@ -106,7 +119,7 @@ export async function runPersonalization(
   repo.personal.archiveStale(owner.learnerId);
   repo.personal.expireOld(now);
   const last = repo.personal.lastJob(owner.learnerId);
-  if (last?.status === "failed" && now - last.updatedAt < LIMITS.retryAfterMs) return skipped("retry_later");
+  if (last?.status === "failed" && now - last.updatedAt < workLimits.retryAfterMs) return skipped("retry_later");
 
   const input = repo.extractionInput();
   const targetsBefore = generationTargets(repo, now);
@@ -120,14 +133,14 @@ export async function runPersonalization(
   ]);
   const job = repo.personal.startJob(owner, fp);
   if (!job) return skipped("already_done");
-  if (!repo.personal.reserve(owner.learnerId, "pipelineAttempts", LIMITS.pipelineAttemptsPerDay)) {
+  if (!repo.personal.reserve(owner.learnerId, "pipelineAttempts", workLimits.attemptsPerDay)) {
     repo.personal.finishJob(job, "cancelled", "daily_limit");
     return skipped("daily_limit");
   }
 
   const call = async (instructions: string, payload: object) => {
     if (!current()) throw Error("invalidated");
-    if (!repo.personal.reserve(owner.learnerId, "dispatchCount", LIMITS.pipelineAttemptsPerDay * LIMITS.callsPerPipeline))
+    if (!repo.personal.reserve(owner.learnerId, "dispatchCount", workLimits.dispatchesPerDay))
       throw Error("daily_limit");
     const text = await runRequest(
       "background",

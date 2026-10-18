@@ -43,6 +43,7 @@ export function usePersonalization() {
       running.current = controller;
       void runPersonalization(repo, auth, models, controller.signal)
         .then((r) => {
+          if (__DEV__) console.log("[V4] pass", JSON.stringify(r));
           if (r.status === "succeeded" && (r.approvedGap || r.approvedCheck || r.memoriesChanged)) refresh();
         })
         .catch(() => {})

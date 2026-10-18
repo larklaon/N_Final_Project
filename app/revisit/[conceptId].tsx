@@ -32,8 +32,11 @@ export default function Revisit() {
   const [answer, setAnswer] = useState<{ correct: boolean } | null>(null);
   const [error, setError] = useState("");
   const [hidden, setHidden] = useState(false);
-  // What happened last time stays as it was when this screen opened.
-  const [past] = useState(() => repo.lastGapAnswer(conceptId));
+  // What happened last time stays as it was when this screen opened. An answer given on the
+  // widget just before opening may still be on its way in; pick it up once it lands.
+  const [opened] = useState(() => repo.lastGapAnswer(conceptId));
+  const [frozen, setFrozen] = useState<typeof opened>(null);
+  const past = opened ?? frozen ?? repo.lastGapAnswer(conceptId);
   const concept = snapshot.concepts.find((c) => c.id === conceptId);
   const close = () => (router.canGoBack() ? router.back() : router.replace("/"));
 
@@ -62,6 +65,7 @@ export default function Revisit() {
   const then = quiz.options.find((o) => o.id === past.selectedOptionId)?.text ?? "";
 
   function check() {
+    setFrozen(past);
     const at = Date.now();
     try {
       repo.ingestGapEvents([
