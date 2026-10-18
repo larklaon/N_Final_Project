@@ -173,4 +173,32 @@ class GapStateTest {
       .put("feedback", "SQL 인젝션은 입력이 SQL 명령의 일부로 해석되어 의도와 다른 쿼리가 실행되는 문제예요."))
     assertEquals("SQL 인젝션", GapSurfaces.collapsedNote("맞았어요", long))
   }
+
+  @Test fun aiCardsKeepTheirOriginAndExpiredOnesGiveWay() {
+    val ai = card(0).put("origin", "ai").put("expiresAt", now + 60_000).put("questionId", "ai:g1")
+    val deck = JSONArray().put(ai).put(card(1)).put(card(2))
+    val s = GapState().apply { configure(config(0).put("deck", deck), now) }
+    val c = s.current()!!
+    assertTrue(c.isAi)
+    assertEquals(now + 60_000, c.expiresAt)
+    assertEquals("영역 · AI", GapSurfaces.areaLabel(c))
+    assertFalse(s.skipExpired(now))
+    // Survives the stored JSON round trip.
+    assertTrue(GapState(JSONObject(s.root.toString())).current()!!.isAi)
+    // Once expired and unanswered, the next live card takes its place.
+    assertTrue(s.skipExpired(now + 60_000))
+    assertEquals("c1", s.current()!!.cardId)
+    // advance never lands on an expired card.
+    s.advance(now + 61_000); s.advance(now + 62_000)
+    assertEquals("c1", s.current()!!.cardId)
+  }
+
+  @Test fun anAnsweredExpiredAiCardKeepsItsResult() {
+    val ai = card(0).put("origin", "ai").put("expiresAt", now + 1_000).put("questionId", "ai:g1")
+    val s = GapState().apply { configure(config(0).put("deck", JSONArray().put(ai).put(card(1))), now) }
+    s.answer("c0", "o", now, newId)
+    assertFalse(s.skipExpired(now + 5_000))
+    assertTrue(s.view(false, 9 * 60) is GapView.Result)
+    assertEquals("ai:g1", s.events().getJSONObject(0).getString("questionId"))
+  }
 }

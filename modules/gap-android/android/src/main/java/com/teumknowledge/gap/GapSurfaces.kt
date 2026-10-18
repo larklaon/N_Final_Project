@@ -39,9 +39,13 @@ object GapSurfaces {
   private const val INK = 0xFF121513.toInt()
   private fun verdictColor(a: GapAnswer) = if (a.correct) RIGHT else WRONG
 
+  /** The small text label beside the area; never inside the two-line question space. */
+  fun areaLabel(card: GapCard) = if (card.isAi) "${card.area} · AI" else card.area
+
   private fun minuteOfDay() = Calendar.getInstance().let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
 
   fun render(context: Context) {
+    GapStore.update(context) { it.skipExpired(System.currentTimeMillis()) }
     val (notification, widget) = GapStore.read(context) { s ->
       s.view(forNotification = true, minuteOfDay()) to s.view(forNotification = false, minuteOfDay())
     }
@@ -128,7 +132,7 @@ object GapSurfaces {
     }
     val n = NotificationCompat.Builder(context, CHANNEL)
       .setSmallIcon(R.drawable.ic_gap_card).setColor(ACCENT)
-      .setSubText(card.area)
+      .setSubText(areaLabel(card))
       .setStyle(NotificationCompat.DecoratedCustomViewStyle())
       .setCustomContentView(collapsed).setCustomBigContentView(expanded)
       .setContentTitle(card.prompt)
@@ -148,6 +152,7 @@ object GapSurfaces {
   private fun bindQuestion(context: Context, v: RemoteViews, card: GapCard, compact: Boolean) {
     // Collapsed shows the short lock-screen wording; expanded shows the full prompt.
     v.setTextViewText(R.id.gap_prompt, if (compact) card.collapsedPrompt else card.prompt)
+    v.setContentDescription(R.id.gap_prompt, if (card.isAi) "AI가 만든 카드. ${card.prompt}" else card.prompt)
     v.setInt(R.id.gap_prompt, "setMaxLines", if (!compact) 5 else if (card.isOx) 2 else 1)
     v.setTextViewTextSize(R.id.gap_prompt, TypedValue.COMPLEX_UNIT_SP, if (compact) 14f else 16f)
     // Collapsed: O/X keys beside the band. Expanded: wide O/X keys, or the choices, below it.
@@ -237,6 +242,7 @@ object GapSurfaces {
     v.setViewVisibility(R.id.gap_widget_feedback, View.GONE)
     // Launchers reapply onto the same views; reset what the result state recolours.
     v.setTextColor(R.id.gap_widget_prompt, INK)
+    v.setContentDescription(R.id.gap_widget_prompt, null)
     when (view) {
       is GapView.Hidden -> {
         if (!small) v.setTextViewText(R.id.gap_widget_area, "틈지식")
@@ -245,8 +251,9 @@ object GapSurfaces {
       }
       is GapView.Question -> {
         val shape = shapeFor(view.card, size, view.position)
-        if (!small) v.setTextViewText(R.id.gap_widget_area, view.card.area)
+        if (!small) v.setTextViewText(R.id.gap_widget_area, areaLabel(view.card))
         v.setTextViewText(R.id.gap_widget_prompt, shape.prompt)
+        v.setContentDescription(R.id.gap_widget_prompt, if (view.card.isAi) "AI가 만든 카드. ${shape.prompt}" else shape.prompt)
         val buttons = when {
           shape.isOx -> { showOnly(R.id.gap_widget_ox); intArrayOf(R.id.gap_widget_o, R.id.gap_widget_x) }
           small -> { showOnly(null); intArrayOf() } // No O/X variant: tapping opens the app.
@@ -264,7 +271,7 @@ object GapSurfaces {
         }
       }
       is GapView.Result -> {
-        if (!small) v.setTextViewText(R.id.gap_widget_area, view.card.area)
+        if (!small) v.setTextViewText(R.id.gap_widget_area, areaLabel(view.card))
         v.setTextViewText(R.id.gap_widget_prompt, resultTitle(view.shown, view.answer))
         v.setTextColor(R.id.gap_widget_prompt, verdictColor(view.answer))
         v.setTextViewText(R.id.gap_widget_feedback, view.shown.feedback)

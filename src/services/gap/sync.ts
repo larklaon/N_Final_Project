@@ -48,7 +48,7 @@ async function syncNow(repo: LearningRepository): Promise<void> {
       start: settings.gapStart,
       end: settings.gapEnd,
       // The widget is placed by the user and follows the deck even when the lock-screen card is off.
-      deck: buildDeck(snapshot, repo.questions(), Date.now()),
+      deck: buildDeck(snapshot, repo.questions(), Date.now(), 30, repo.deckExtras(snapshot.learnerId)),
     });
     if (!current()) continue; // A newer state replaces this deck on the next pass.
     const job = repo
@@ -89,4 +89,11 @@ export async function enableGap(repo: LearningRepository) {
     );
   repo.updateSettings({ gapEnabled: true });
   await syncGap(repo);
+}
+
+/** V4 "이 카드 숨기기": commit the hide, then rebuild the native deck without it. */
+export function hideGeneratedCard(repo: LearningRepository, generatedId: string): Promise<void> {
+  return mutateLearningWithGap(repo, () => {
+    if (repo.personal.hide(repo.activeLearner, generatedId)) repo.touchLearner(repo.activeLearner);
+  });
 }

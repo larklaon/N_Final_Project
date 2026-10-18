@@ -19,7 +19,12 @@ data class GapCard(
   val variants: Map<String, GapCard> = emptyMap(),
   /** Wording that fits the collapsed lock-screen card; empty when the prompt already fits. */
   val short: String = "",
+  /** V4: "ai" for an AI-made card; it is labelled and skipped once [expiresAt] passes. */
+  val origin: String = "",
+  val expiresAt: Long = 0,
 ) {
+  val isAi get() = origin == "ai"
+  fun expired(now: Long) = expiresAt > 0 && now >= expiresAt
   val collapsedPrompt get() = short.ifEmpty { prompt }
   val isOx get() = type == "ox"
   fun option(id: String) = options.firstOrNull { it.id == id }
@@ -66,6 +71,25 @@ class GapState(val root: JSONObject = JSONObject()) {
   }
 
   fun current(): GapCard? = deck.getOrNull(index)
+
+  /**
+   * An unanswered expired AI card gives way to the next live card. Answered ones keep their
+   * result until "다음". If nothing live is left the deck shows nothing until the app rebuilds it.
+   */
+  fun skipExpired(now: Long): Boolean {
+    val cards = deck
+    val card = cards.getOrNull(index) ?: return false
+    if (!card.expired(now) || root.has("answer") || root.has("held")) return false
+    for (step in 1..cards.size) {
+      val i = (index + step) % cards.size
+      if (!cards[i].expired(now)) {
+        root.put("index", i); root.remove("dismissed"); root.put("shownAt", now)
+        return true
+      }
+    }
+    root.put("deck", JSONArray()); root.put("index", 0)
+    return true
+  }
 
   /** A result the learner was reading when a new deck arrived. It stays until "다음". */
   private val held: Pair<GapCard, JSONObject>? get() = root.optJSONObject("held")?.let { h ->
@@ -140,7 +164,7 @@ class GapState(val root: JSONObject = JSONObject()) {
     var next = index
     for (step in 1..deck.size) {
       val i = (index + step) % deck.size
-      if (deck[i].questionId !in done) { next = i; break }
+      if (deck[i].questionId !in done && !deck[i].expired(now)) { next = i; break }
       if (step == deck.size) { root.put("correctIds", JSONArray()); next = (index + 1) % deck.size }
     }
     root.put("index", next)
@@ -178,11 +202,12 @@ class GapState(val root: JSONObject = JSONObject()) {
   companion object {
     fun parseCard(o: JSONObject): GapCard {
       val card = parseShape(o, o)
-      val v = o.optJSONObject("variants") ?: return card.copy(short = o.optString("short"))
+      val meta = card.copy(short = o.optString("short"), origin = o.optString("origin"), expiresAt = o.optLong("expiresAt", 0))
+      val v = o.optJSONObject("variants") ?: return meta
       val variants = v.keys().asSequence().mapNotNull { key ->
         v.optJSONObject(key)?.let { x -> runCatching { key to parseShape(x, o) }.getOrNull() }
       }.toMap()
-      return card.copy(variants = variants, short = o.optString("short"))
+      return meta.copy(variants = variants)
     }
     /** A variant shares the card's identity and piece; only the question differs. */
     private fun parseShape(o: JSONObject, card: JSONObject): GapCard {

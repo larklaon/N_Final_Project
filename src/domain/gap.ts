@@ -1,5 +1,6 @@
 import { DAY } from "./review";
 import { shuffled, termQuestion } from "./term";
+import { LIMITS } from "./personalization";
 import type { Concept, GapProgress, LearningSnapshot, Quiz } from "./types";
 
 const gapIntervals = [1, 3, 7];
@@ -66,6 +67,17 @@ export type GapCard = {
    * small ox; default term·ox; large term·choice·ox.
    */
   variants: { ox?: GapVariant; choice?: GapVariant; term?: GapVariant };
+  /** V4: an AI-made card. The surfaces label it and skip it once it expires. */
+  origin?: "ai";
+  expiresAt?: number;
+};
+
+/** V4 inputs to the deck: approved AI cards, today's plan focus, concepts with open memories. */
+export type DeckExtras = {
+  generated: Quiz[];
+  generatedExpiresAt: Record<string, number>;
+  focus: string[];
+  memoryConcepts: string[];
 };
 
 function variant(q: Quiz, concept: Concept, seed: string): GapVariant {
@@ -98,19 +110,24 @@ export function buildDeck(
   questions: Quiz[],
   now: number,
   size = 30,
+  extras?: DeckExtras,
 ): GapCard[] {
   const byConcept = new Map<string, Quiz[]>();
   for (const q of questions)
     if (q.layer === "gap")
       byConcept.set(q.conceptId, [...(byConcept.get(q.conceptId) ?? []), q]);
   const gp = s.gapProgress;
+  // The plan focus and open memories reorder only within the same bucket: a piece that is
+  // not due yet never jumps ahead of an overdue one.
+  const preferred = (c: Concept) =>
+    extras && (extras.focus.includes(c.id) || extras.focus.includes(c.area) || extras.memoryConcepts.includes(c.id)) ? 0 : 1;
   const due = s.concepts
     .filter((c) => gp[c.id] && gp[c.id].dueAt <= now)
-    .sort((a, b) => gp[a.id].dueAt - gp[b.id].dueAt || a.order - b.order);
-  const unseen = s.concepts.filter((c) => !gp[c.id]);
+    .sort((a, b) => preferred(a) - preferred(b) || gp[a.id].dueAt - gp[b.id].dueAt || a.order - b.order);
+  const unseen = s.concepts.filter((c) => !gp[c.id]).sort((a, b) => preferred(a) - preferred(b) || a.order - b.order);
   const later = s.concepts
     .filter((c) => gp[c.id] && gp[c.id].dueAt > now)
-    .sort((a, b) => gp[a.id].dueAt - gp[b.id].dueAt || a.order - b.order);
+    .sort((a, b) => preferred(a) - preferred(b) || gp[a.id].dueAt - gp[b.id].dueAt || a.order - b.order);
   const cards: GapCard[] = [];
   for (const concept of [...due, ...unseen, ...later]) {
     if (cards.length >= size) break;
@@ -138,7 +155,51 @@ export function buildDeck(
       },
     });
   }
-  return cards;
+  return extras ? withGenerated(cards, s, extras, now) : cards;
+}
+
+/**
+ * Puts AI cards in the place their concept already had, one per concept, at most
+ * floor(N x 20%) of the final deck (none below 5 cards), never two in a row. The AI card is
+ * the same O/X on the lock screen and every widget size (no term/choice variants).
+ */
+function withGenerated(cards: GapCard[], s: LearningSnapshot, extras: DeckExtras, now: number): GapCard[] {
+  const n = cards.length;
+  const allowed = n >= LIMITS.deckMinForGenerated ? Math.floor(n * LIMITS.deckShare) : 0;
+  if (allowed === 0) return cards;
+  const out = [...cards];
+  const used = new Set<string>();
+  let placed = 0;
+  for (const q of extras.generated) {
+    if (placed >= allowed) break;
+    if (q.layer !== "gap" || q.type !== "ox" || used.has(q.conceptId)) continue;
+    const expiresAt = extras.generatedExpiresAt[q.id];
+    if (!expiresAt || expiresAt <= now) continue;
+    const i = out.findIndex((c) => c.conceptId === q.conceptId);
+    if (i < 0) continue;
+    if (out[i - 1]?.origin === "ai" || out[i + 1]?.origin === "ai") continue;
+    const concept = s.concepts.find((c) => c.id === q.conceptId)!;
+    out[i] = {
+      cardId: out[i].cardId,
+      short: q.prompt,
+      learnerId: s.learnerId,
+      questionId: q.id,
+      conceptId: q.conceptId,
+      conceptTitle: concept.title,
+      area: concept.area,
+      type: "ox",
+      prompt: q.prompt,
+      options: q.options,
+      correctOptionId: q.correctOptionId,
+      feedback: q.explanation.length <= 120 ? q.explanation : concept.oneLiner,
+      variants: {},
+      origin: "ai",
+      expiresAt,
+    };
+    used.add(q.conceptId);
+    placed++;
+  }
+  return out;
 }
 
 /** HH:MM inside [start, end). Used to validate settings and mirror native gating. */

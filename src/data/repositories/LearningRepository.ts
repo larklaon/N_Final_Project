@@ -4,7 +4,8 @@ import { chatSchema, gapSchema, schema, v3Schema, v6Schema } from "../db/schema"
 import { PersonalizationStore } from "./PersonalizationStore";
 import { advanceGap, requeueGap } from "../../domain/gap";
 import { termQuestion } from "../../domain/term";
-import type { Plan } from "../../domain/plan";
+import { planDay, type Plan } from "../../domain/plan";
+import type { DeckExtras } from "../../domain/gap";
 import {
   applyAnswer,
   deltaFor,
@@ -330,6 +331,27 @@ export class LearningRepository {
     const generated = this.questionIndex().get(id);
     if (!generated) throw Error("문제를 찾지 못했어요.");
     return generated;
+  }
+  /**
+   * V4 deck inputs: approved AI cards of open (active/improving) memories, only while
+   * personalization is on, plus today's plan focus for ordering within a bucket.
+   */
+  deckExtras(learnerId = this.activeLearner, now = this.clock()): DeckExtras {
+    const s = this.snapshot(learnerId);
+    const subject = packOf(s.settings.subjectId).id;
+    const on = s.settings.personalizationEnabled && !!s.settings.personalizationConsentAt;
+    const open = on
+      ? this.personal.memories(learnerId, subject).filter((m) => m.status === "active" || m.status === "improving")
+      : [];
+    const rows = this.personal
+      .live(learnerId, subject, "gap", now)
+      .filter((r) => open.some((m) => m.id === r.memoryId));
+    return {
+      generated: rows.map((r) => r.quiz),
+      generatedExpiresAt: Object.fromEntries(rows.map((r) => [r.quiz.id, r.expiresAt])),
+      focus: planDay(this.plan(learnerId), now)?.focus ?? [],
+      memoryConcepts: open.map((m) => m.conceptId),
+    };
   }
   /** V4: new observations (wrong answers, the learner's chat turns) for the memory extractor. */
   extractionInput(learnerId = this.activeLearner) {

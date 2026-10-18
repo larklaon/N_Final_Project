@@ -15,6 +15,8 @@ export type GapPreview = {
   prompt: string;
   /** Collapsed lock-screen wording, when the prompt is too long. */
   short?: string;
+  /** V4: "ai" for an AI-made card. */
+  origin?: string;
   area: string;
   type: "ox" | "choice";
   options: { id: string; text: string }[];
