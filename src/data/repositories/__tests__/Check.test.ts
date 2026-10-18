@@ -149,3 +149,17 @@ test("the plan sees active memories as summaries only, and a dirty plan refreshe
   repo.updateSettings({ personalizationEnabled: false });
   expect(repo.planRefreshDue()).toBe(false);
 });
+
+test("ignoring or deleting a memory stops its card and its open check; answer history stays", () => {
+  const memoryId = answeredCard();
+  repo.personal.saveApproved(owner(), check(memoryId));
+  now += 25 * HOUR;
+  expect(repo.checkSession()).not.toBeNull();
+  const cardId = repo.lastGapAnswer("ds-queue")!.quiz.id;
+  expect(repo.personal.deleteMemory(repo.activeLearner, memoryId)).toBe(true);
+  expect(repo.personal.memory(repo.activeLearner, memoryId)).toBeNull();
+  expect(repo.checkSession()).toBeNull(); // The open check is not resumed.
+  expect(repo.deckExtras().generated).toEqual([]);
+  expect(repo.quiz(cardId).id).toBe(cardId);
+  expect(repo.lastGapAnswer("ds-queue")!.quiz.id).toBe(cardId);
+});

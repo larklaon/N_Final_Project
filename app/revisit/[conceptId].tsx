@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   Band,
   BandBody,
-  BandLabel,
+  BandLabelRow,
   DarkNote,
   DarkScreen,
   IconButton,
@@ -16,6 +16,7 @@ import {
 import { AskBar } from "../../src/components/AskBar";
 import { useApp } from "../../src/platform/AppProvider";
 import { whenSeen } from "../../src/domain/puzzle";
+import { hideGeneratedCard } from "../../src/services/gap/sync";
 import { colors, fonts, type } from "../../src/theme/tokens";
 
 /**
@@ -30,6 +31,7 @@ export default function Revisit() {
   const [selected, setSelected] = useState("");
   const [answer, setAnswer] = useState<{ correct: boolean } | null>(null);
   const [error, setError] = useState("");
+  const [hidden, setHidden] = useState(false);
   // What happened last time stays as it was when this screen opened.
   const [past] = useState(() => repo.lastGapAnswer(conceptId));
   const concept = snapshot.concepts.find((c) => c.id === conceptId);
@@ -53,6 +55,9 @@ export default function Revisit() {
     );
 
   const { quiz } = past;
+  // V4: an AI-made card shows what it was built on and can be taken out of the deck.
+  const generatedId = quiz.origin?.generatedId;
+  const live = !!generatedId && !hidden && repo.personal.row(generatedId, snapshot.learnerId)?.status === "approved";
   const right = quiz.options.find((o) => o.id === quiz.correctOptionId)?.text ?? "";
   const then = quiz.options.find((o) => o.id === past.selectedOptionId)?.text ?? "";
 
@@ -75,6 +80,17 @@ export default function Revisit() {
     }
   }
 
+  function hide() {
+    if (!generatedId) return;
+    hideGeneratedCard(repo, generatedId)
+      .then(() => {
+        setHidden(true);
+        refresh();
+      })
+      .catch(() => setError("카드를 숨기지 못했어요. 다시 시도해 주세요."));
+  }
+  const hideLink = live ? <TextLink tone="dark" label="이 카드 숨기기" onPress={hide} /> : null;
+
   const ask =
     auth.status === "ready" ? (
       <AskBar conceptId={concept.id} questionId={quiz.id} selected={selected} answered={!!answer} />
@@ -92,11 +108,13 @@ export default function Revisit() {
               label="이 개념 깊게 보기"
               onPress={() => router.push({ pathname: "/concept/[conceptId]", params: { conceptId: concept.id } })}
             />
+            {hideLink}
             {ask}
           </>
         ) : (
           <>
             <PrimaryButton label="확인" disabled={!selected} onPress={check} />
+            {hideLink}
             {ask}
           </>
         )
@@ -104,7 +122,7 @@ export default function Revisit() {
     >
       <Band slant={4}>
         <View style={s.labelRow}>
-          <BandLabel>{concept.title}</BandLabel>
+          <BandLabelRow ai={!!generatedId}>{concept.title}</BandLabelRow>
           <View style={s.past} accessibilityLabel={past.correct ? "그때 맞혔어요" : "그때 틀렸어요"}>
             <Ionicons
               name={past.correct ? "checkmark" : "close"}
@@ -161,6 +179,27 @@ export default function Revisit() {
           </>
         )}
       </Band>
+      {!!generatedId && !!answer && quiz.sourceRefs.length > 0 && (
+        <View style={s.sources}>
+          <Text style={s.sourcesLabel}>기준 자료</Text>
+          {quiz.sourceRefs.map((r) => (
+            <Pressable
+              key={r.url}
+              accessibilityRole="link"
+              accessibilityLabel={`기준 자료 ${r.title}, 브라우저에서 열기`}
+              onPress={() => void Linking.openURL(r.url)}
+              style={({ pressed }) => [s.source, pressed && { opacity: 0.7 }]}
+            >
+              <Ionicons name="document-text-outline" size={16} color={colors.inkMuted} accessible={false} />
+              <Text style={s.sourceText} numberOfLines={2}>
+                {r.title}
+              </Text>
+              <Ionicons name="open-outline" size={14} color={colors.inkSoft} accessible={false} />
+            </Pressable>
+          ))}
+        </View>
+      )}
+      {hidden && <DarkNote icon="eye-off-outline">숨겼어요. 다시 나오지 않아요.</DarkNote>}
       {!!error && <DarkNote icon="alert-circle-outline">{error}</DarkNote>}
     </DarkScreen>
   );
@@ -176,4 +215,8 @@ const s = StyleSheet.create({
   verdictRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   verdict: { ...type.small, fontFamily: fonts.semibold, color: colors.bandLabel },
   then: { ...type.small, color: colors.bandText2 },
+  sources: { marginHorizontal: 24, gap: 4 },
+  sourcesLabel: { ...type.small, fontSize: 13, color: colors.inkMuted },
+  source: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 10 },
+  sourceText: { ...type.small, flex: 1, color: colors.inkText },
 });

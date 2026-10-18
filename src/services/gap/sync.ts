@@ -97,3 +97,12 @@ export function hideGeneratedCard(repo: LearningRepository, generatedId: string)
     if (repo.personal.hide(repo.activeLearner, generatedId)) repo.touchLearner(repo.activeLearner);
   });
 }
+
+/** V4 "자주 헷갈린 점" → 무시/삭제: commit, then rebuild the native deck without its cards. */
+export function forgetMemory(repo: LearningRepository, memoryId: string, how: "ignore" | "delete"): Promise<void> {
+  return mutateLearningWithGap(repo, () => {
+    const learner = repo.activeLearner;
+    const done = how === "ignore" ? repo.personal.ignoreMemory(learner, memoryId) : repo.personal.deleteMemory(learner, memoryId);
+    if (done) repo.touchLearner(learner);
+  });
+}

@@ -1,12 +1,89 @@
 import { useEffect, useRef, useState } from "react";
-import { findNodeHandle, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, findNodeHandle, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Message, Screen } from "../../src/components/ui";
+import { AiTag, Message, Screen } from "../../src/components/ui";
 import { useApp } from "../../src/platform/AppProvider";
 import { resolutionOf } from "../../src/domain/puzzle";
 import { colors, fonts, type } from "../../src/theme/tokens";
 import { readOnlySelection } from "../../modules/text-android";
+import { packOf } from "../../src/data/content/packs";
+import { forgetMemory } from "../../src/services/gap/sync";
+import type { LearningRepository } from "../../src/data/repositories/LearningRepository";
+
+const statusWord = {
+  active: "자주 헷갈려요",
+  improving: "나아지는 중",
+  resolved: "이젠 맞혀요",
+} as const;
+
+/**
+ * V4: what the learner keeps mixing up on this piece, as the AI summarized it from wrong
+ * answers and chat. The status is the app's own rule, not the AI's confidence.
+ */
+function Confusions({ repo, conceptId, onChange }: { repo: LearningRepository; conceptId: string; onChange: () => void }) {
+  const subject = packOf(repo.snapshot().settings.subjectId).id;
+  const list = repo.personal
+    .memories(repo.activeLearner, subject)
+    .filter((m) => m.conceptId === conceptId)
+    .flatMap((m) => (m.status in statusWord ? [{ ...m, word: statusWord[m.status as keyof typeof statusWord] }] : []));
+  if (!list.length) return null;
+  const act = (id: string, how: "ignore" | "delete") => void forgetMemory(repo, id, how).finally(onChange);
+  return (
+    <View style={c.wrap}>
+      <View style={c.head}>
+        <Text accessibilityRole="header" style={c.title}>
+          자주 헷갈린 점
+        </Text>
+        <AiTag label="AI가 정리한 내용" />
+      </View>
+      {list.map((m) => (
+        <View key={m.id} style={c.item}>
+          <Text style={c.summary}>{m.summary}</Text>
+          <View style={c.meta}>
+            <Text style={[c.status, m.status !== "active" && { color: colors.mintText }]}>{m.word}</Text>
+            <View style={{ flex: 1 }} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`무시하기. ${m.summary}`}
+              hitSlop={10}
+              onPress={() => act(m.id, "ignore")}
+              style={({ pressed }) => [c.action, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={c.actionText}>무시</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`삭제하기. ${m.summary}`}
+              hitSlop={10}
+              onPress={() =>
+                Alert.alert("이 기록을 지울까요?", "이 기록으로 만든 카드도 더는 나오지 않아요.", [
+                  { text: "취소", style: "cancel" },
+                  { text: "삭제", style: "destructive", onPress: () => act(m.id, "delete") },
+                ])
+              }
+              style={({ pressed }) => [c.action, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={c.actionText}>삭제</Text>
+            </Pressable>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const c = StyleSheet.create({
+  wrap: { marginTop: 8, borderTopWidth: 1, borderTopColor: colors.bandLine, paddingTop: 18, gap: 12 },
+  head: { flexDirection: "row", alignItems: "center", gap: 8 },
+  title: { ...type.option, fontFamily: fonts.semibold, color: colors.ink },
+  item: { gap: 6, paddingLeft: 12, borderLeftWidth: 3, borderLeftColor: colors.mintSoft },
+  summary: { ...type.body, color: colors.bandBody },
+  meta: { flexDirection: "row", alignItems: "center", gap: 18 },
+  status: { ...type.small, fontSize: 13, fontFamily: fonts.semibold, color: colors.bandLabel },
+  action: { minHeight: 32, justifyContent: "center" },
+  actionText: { ...type.small, fontSize: 13, color: colors.bandText2 },
+});
 
 const levels = [
   "이것만 알아도 대충 알아요",
@@ -62,7 +139,7 @@ function SelectableBody({
 
 export default function Concept() {
   const { conceptId } = useLocalSearchParams<{ conceptId: string }>();
-  const { snapshot, now } = useApp();
+  const { repo, snapshot, now, refresh } = useApp();
   const router = useRouter();
   const [open, setOpen] = useState<boolean[]>([true, false, false]);
   const [selection, setSelection] = useState("");
@@ -126,6 +203,7 @@ export default function Concept() {
             </View>
           ))}
         </View>
+        <Confusions repo={repo} conceptId={concept.id} onChange={refresh} />
         <View style={{ height: 88 }} />
       </Screen>
       <View style={s.askBar} pointerEvents="box-none">

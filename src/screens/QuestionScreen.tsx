@@ -13,7 +13,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   Band,
   BandBody,
-  BandLabel,
+  BandLabelRow,
   ContextBlock,
   DarkNote,
   DarkScreen,
@@ -325,9 +325,9 @@ function ScopedQuestionScreen() {
       >
         {!answered ? (
           <Band>
-            <BandLabel>
+            <BandLabelRow ai={!!quiz.origin}>
               {session.practice ? `${concept.area} · 연습` : concept.area}
-            </BandLabel>
+            </BandLabelRow>
             <Text accessibilityRole="header" style={[type.question, s.bandText]}>
               {quiz.prompt}
             </Text>

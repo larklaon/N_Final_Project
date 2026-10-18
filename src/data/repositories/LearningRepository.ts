@@ -658,6 +658,8 @@ export class LearningRepository {
       return row ? (JSON.parse(row.data) as Session) : null;
     };
     const usable = (x: Session) => {
+      const m = x.checkMemoryId ? this.personal.memory(learner, x.checkMemoryId) : null;
+      if (!m || (m.status !== "active" && m.status !== "improving")) return false;
       const p = s.progress[x.conceptId];
       if (!s.concepts.some((c) => c.id === x.conceptId) || !canGrade(p, x.revision, now)) return false;
       try {

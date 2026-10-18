@@ -23,17 +23,25 @@ import { openSubscriptionUsage } from "../src/services/ai/subscriptionUsage";
 import { dailyGoals, gapIntervals } from "../src/data/repositories/LearningRepository";
 import { colors, fonts, type } from "../src/theme/tokens";
 import { packOf } from "../src/data/content/packs";
+import { CONSENT_VERSION } from "../src/domain/personalization";
 
 /** A system-style mock of the card that is on the lock screen right now. */
 function CardPreview({ card, hours }: { card: GapPreview; hours: string }) {
   return (
-    <View style={p.wrap} accessible accessibilityLabel={`잠금 화면 카드 미리보기: ${card.prompt}`}>
+    <View
+      style={p.wrap}
+      accessible
+      accessibilityLabel={`잠금 화면 카드 미리보기${card.origin === "ai" ? ", AI가 만든 카드" : ""}: ${card.prompt}`}
+    >
       <View style={p.card}>
         <View style={p.head}>
           <View style={p.icon}>
             <View style={p.slit} />
           </View>
-          <Text style={p.meta}>틈지식 · {card.area}</Text>
+          <Text style={p.meta}>
+            틈지식 · {card.area}
+            {card.origin === "ai" ? " · AI" : ""}
+          </Text>
         </View>
         <View style={p.row}>
           <View style={p.band}>
@@ -215,7 +223,7 @@ export default function Settings() {
   function connect(profile: string | null, requestPlanConsent = false) {
     Alert.alert(
       "ChatGPT 연결 안내",
-      "개념·학습 요약·입력 질문을 OpenAI에 전송해 개인화 설명을 만들어요. ChatGPT 플랜 사용량이 적용돼요. 첫 연결은 현재 기기의 학습 기록과 연결돼요.",
+      "개념·학습 요약·입력 질문을 OpenAI에 전송해 개인화 설명을 만들어요. ChatGPT 플랜 사용량이 적용돼요. 첫 연결은 현재 기기의 학습 기록과 연결돼요. AI 맞춤 학습은 설정에서 따로 켜요.",
       [
         { text: "취소", style: "cancel" },
         {
@@ -254,6 +262,20 @@ export default function Settings() {
       ],
     );
   }
+  /** V4 AI 맞춤 학습: separate from the send consent; off cancels work and rebuilds the deck. */
+  function setPersonal(on: boolean) {
+    void run(() =>
+      mutateLearningWithGap(repo, () =>
+        repo.updateSettings(
+          on
+            ? { personalizationEnabled: true, personalizationConsentAt: Date.now(), personalizationConsentVersion: CONSENT_VERSION }
+            : { personalizationEnabled: false },
+        ),
+      ),
+    );
+  }
+  const personalFailed =
+    settings.personalizationEnabled && repo.personal.lastJob(snapshot.learnerId)?.status === "failed";
   const [windowOpen, setWindowOpen] = useState(false);
   const currentProfile = profiles.find((p) => p.profileId === auth.profileId);
 
@@ -444,9 +466,30 @@ export default function Settings() {
                 value={settings.aiConsentAt !== null}
                 onValueChange={(on) =>
                   void run(() =>
-                    repo.updateSettings({ aiConsentAt: on ? Date.now() : null }),
+                    on
+                      ? repo.updateSettings({ aiConsentAt: Date.now() })
+                      : // Withdrawing the send consent also stops personalization.
+                        mutateLearningWithGap(repo, () =>
+                          repo.updateSettings({ aiConsentAt: null, personalizationEnabled: false }),
+                        ),
                   )
                 }
+              />
+            }
+          />
+          <Row
+            label="AI 맞춤 학습"
+            sub={
+              personalFailed
+                ? "맞춤 카드를 준비하지 못했어요. 기본 카드로 이어가요."
+                : "오답과 이 앱의 대화를 바탕으로 카드와 확인 문제를 준비해요."
+            }
+            right={
+              <Toggle
+                label="AI 맞춤 학습"
+                value={settings.personalizationEnabled}
+                disabled={busy || (settings.aiConsentAt === null && !settings.personalizationEnabled)}
+                onValueChange={setPersonal}
               />
             }
           />

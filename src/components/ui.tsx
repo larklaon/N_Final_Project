@@ -506,6 +506,26 @@ export function Band({
 export function BandLabel({ children }: PropsWithChildren) {
   return <Text style={s.bandLabel}>{children}</Text>;
 }
+/**
+ * V4: the small "AI" mark beside a label, for cards and questions the AI made for this
+ * learner. Text, not only a color, so it reads in every mode; screen readers hear the meaning.
+ */
+export function AiTag({ label = "AI가 만든 문제" }: { label?: string }) {
+  return (
+    <View style={s.aiTag} accessible accessibilityLabel={label}>
+      <Text style={s.aiTagText}>AI</Text>
+    </View>
+  );
+}
+/** A band label with the AI mark after it. */
+export function BandLabelRow({ children, ai }: PropsWithChildren<{ ai?: boolean }>) {
+  return (
+    <View style={s.bandLabelRow}>
+      <BandLabel>{children}</BandLabel>
+      {ai && <AiTag />}
+    </View>
+  );
+}
 export function BandBody({ children }: PropsWithChildren) {
   return <Text style={s.bandBody}>{children}</Text>;
 }
@@ -772,6 +792,15 @@ const s = StyleSheet.create({
     height: 0,
     borderColor: "transparent",
   },
+  aiTag: {
+    borderWidth: 1,
+    borderColor: colors.mintText,
+    borderRadius: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 0,
+  },
+  aiTagText: { fontFamily: fonts.semibold, fontSize: 11, lineHeight: 15, letterSpacing: 0.6, color: colors.mintText },
+  bandLabelRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   bandLabel: { ...type.label, color: colors.bandLabel },
   bandBody: { ...type.body, color: colors.bandBody },
   codeWell: { backgroundColor: colors.bandFaint, borderRadius: 8, flexGrow: 0 },

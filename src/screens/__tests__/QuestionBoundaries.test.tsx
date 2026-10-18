@@ -19,7 +19,7 @@ jest.mock("../../components/ui", () => {
   const Wrap = ({ children }: { children?: React.ReactNode }) => <View>{children}</View>;
   const Copy = ({ children }: { children?: React.ReactNode }) => <Text>{children}</Text>;
   const Button = ({ label, onPress }: { label: string; onPress?: () => void }) => <Pressable onPress={onPress}><Text>{label}</Text></Pressable>;
-  return { Band: Wrap, BandBody: Copy, BandLabel: Copy, ContextBlock: Wrap, DarkNote: Wrap,
+  return { Band: Wrap, BandBody: Copy, BandLabel: Copy, BandLabelRow: Copy, ContextBlock: Wrap, DarkNote: Wrap,
     DarkScreen: ({ children, header, footer }: { children?: React.ReactNode; header?: React.ReactNode; footer?: React.ReactNode }) => <View>{header}{children}{footer}</View>,
     IconButton: Button, OptionRow: Button, PrimaryButton: Button, PuzzleMap: () => null,
     TextLink: Button, useReducedMotion: () => true };

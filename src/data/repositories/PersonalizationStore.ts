@@ -520,6 +520,21 @@ export class PersonalizationStore {
   }
 
   /** The learner dismissed a memory: archive it and never reuse those observations. */
+  /** "삭제": the memory and its evidence go; its questions stop being given, answer history stays. */
+  deleteMemory(learnerId: string, memoryId: string) {
+    let ok = false;
+    this.db.withTransactionSync(() => {
+      if (!this.db.getFirstSync("SELECT 1 FROM confusion_memories WHERE id=? AND learnerId=?", memoryId, learnerId)) return;
+      this.db.runSync(
+        "UPDATE generated_questions SET status='hidden' WHERE memoryId=? AND learnerId=? AND status='approved'",
+        memoryId,
+        learnerId,
+      );
+      this.db.runSync("DELETE FROM confusion_memories WHERE id=?", memoryId);
+      ok = true;
+    });
+    return ok;
+  }
   ignoreMemory(learnerId: string, memoryId: string) {
     let ok = false;
     this.db.withTransactionSync(() => {
