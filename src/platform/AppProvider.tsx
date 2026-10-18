@@ -30,6 +30,19 @@ type AppContextValue = {
   now: number;
 };
 const Context = createContext<AppContextValue | null>(null);
+
+/**
+ * One database connection and repository per JS runtime. Android rebuilds the activity when
+ * the font size or display size changes; the app root then mounts again in the same runtime.
+ * Opening "teum.db" a second time and letting the first handle be collected closed the shared
+ * native connection under the new one (NativeDatabase.prepareSync → NullPointerException).
+ */
+let opened: LearningRepository | null = null;
+function openRepository() {
+  opened ??= new LearningRepository(SQLite.openDatabaseSync("teum.db"), Crypto.randomUUID);
+  return opened;
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [repo, setRepo] = useState<LearningRepository | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,10 +74,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void Promise.resolve().then(() => {
       try {
-        const next = new LearningRepository(
-          SQLite.openDatabaseSync("teum.db"),
-          Crypto.randomUUID,
-        );
+        const next = openRepository();
         setRepo(next);
         setSnapshot(next.snapshot());
       } catch {

@@ -41,6 +41,8 @@ object GapSurfaces {
 
   /** The small text label beside the area; never inside the two-line question space. */
   fun areaLabel(card: GapCard) = if (card.isAi) "${card.area} · AI" else card.area
+  /** The system header truncates from the end on narrow phones with large text: AI goes first. */
+  private fun notificationLabel(card: GapCard) = if (card.isAi) "AI · ${card.area}" else card.area
 
   private fun minuteOfDay() = Calendar.getInstance().let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
 
@@ -132,7 +134,7 @@ object GapSurfaces {
     }
     val n = NotificationCompat.Builder(context, CHANNEL)
       .setSmallIcon(R.drawable.ic_gap_card).setColor(ACCENT)
-      .setSubText(areaLabel(card))
+      .setSubText(notificationLabel(card))
       .setStyle(NotificationCompat.DecoratedCustomViewStyle())
       .setCustomContentView(collapsed).setCustomBigContentView(expanded)
       .setContentTitle(card.prompt)
@@ -229,6 +231,11 @@ object GapSurfaces {
   }
 
   private fun widgetViews(context: Context, view: GapView, size: WidgetSize): RemoteViews {
+    // Widget text follows the system font size but the cell does not grow. With large text the
+    // layout stays, the question shapes step down one size (O/X in a medium widget) and the
+    // explanation gets fewer lines, so the question and its buttons stay inside.
+    val big = context.resources.configuration.fontScale >= 1.3f
+    val shapeSize = if (!big) size else when (size) { WidgetSize.LARGE -> WidgetSize.MEDIUM; else -> WidgetSize.SMALL }
     val small = size == WidgetSize.SMALL
     val v = RemoteViews(context.packageName, if (small) R.layout.gap_widget_small else R.layout.gap_widget)
     v.setOnClickPendingIntent(R.id.gap_widget_root, openApp(context))
@@ -250,14 +257,14 @@ object GapSurfaces {
         showOnly(null)
       }
       is GapView.Question -> {
-        val shape = shapeFor(view.card, size, view.position)
+        val shape = shapeFor(view.card, shapeSize, view.position)
         if (!small) v.setTextViewText(R.id.gap_widget_area, areaLabel(view.card))
         v.setTextViewText(R.id.gap_widget_prompt, shape.prompt)
         v.setContentDescription(R.id.gap_widget_prompt, if (view.card.isAi) "AI가 만든 카드. ${shape.prompt}" else shape.prompt)
         val buttons = when {
           shape.isOx -> { showOnly(R.id.gap_widget_ox); intArrayOf(R.id.gap_widget_o, R.id.gap_widget_x) }
           small -> { showOnly(null); intArrayOf() } // No O/X variant: tapping opens the app.
-          size == WidgetSize.MEDIUM && shape.options.size == 4 -> { showOnly(R.id.gap_widget_grid); cellIds }
+          shapeSize == WidgetSize.MEDIUM && shape.options.size == 4 -> { showOnly(R.id.gap_widget_grid); cellIds }
           else -> { showOnly(R.id.gap_widget_list); rowIds }
         }
         buttons.forEachIndexed { i, id ->
@@ -275,7 +282,8 @@ object GapSurfaces {
         v.setTextViewText(R.id.gap_widget_prompt, resultTitle(view.shown, view.answer))
         v.setTextColor(R.id.gap_widget_prompt, verdictColor(view.answer))
         v.setTextViewText(R.id.gap_widget_feedback, view.shown.feedback)
-        v.setInt(R.id.gap_widget_feedback, "setMaxLines", when (size) { WidgetSize.SMALL -> 1; WidgetSize.MEDIUM -> 4; WidgetSize.LARGE -> 8 })
+        val feedbackLines = when (size) { WidgetSize.SMALL -> 1; WidgetSize.MEDIUM -> if (big) 1 else 4; WidgetSize.LARGE -> if (big) 3 else 8 }
+        v.setInt(R.id.gap_widget_feedback, "setMaxLines", feedbackLines)
         v.setViewVisibility(R.id.gap_widget_feedback, View.VISIBLE)
         showOnly(null)
         v.setViewVisibility(R.id.gap_widget_next, View.VISIBLE)

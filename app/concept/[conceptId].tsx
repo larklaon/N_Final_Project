@@ -209,6 +209,7 @@ export default function Concept() {
       <View style={s.askBar} pointerEvents="box-none">
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel={selection ? `AI에게 물어보기, ${selection}` : "AI에게 물어보기"}
           onPress={() => ask()}
           style={({ pressed }) => [s.ask, pressed && { opacity: 0.8 }]}
         >

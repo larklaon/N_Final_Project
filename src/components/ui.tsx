@@ -237,22 +237,26 @@ export function Row({
 }) {
   const content = (
     <>
-      <View style={{ flex: 1, gap: 2 }}>
+      <View style={s.rowText}>
         <Text style={[s.rowLabel, danger && { color: colors.danger }]}>
           {label}
         </Text>
         {sub && <Text style={s.rowSub}>{sub}</Text>}
       </View>
-      {value && <Text style={s.rowValue}>{value}</Text>}
-      {right}
-      {onPress && !right && (
-        <Ionicons
-          name="chevron-forward"
-          size={16}
-          color={colors.bandText2}
-          accessible={false}
-        />
-      )}
+      {/* With large text on a narrow phone the control drops below the label instead of
+          squeezing it into one character per line. */}
+      <View style={s.rowEnd}>
+        {value && <Text style={s.rowValue}>{value}</Text>}
+        {right}
+        {onPress && !right && (
+          <Ionicons
+            name="chevron-forward"
+            size={16}
+            color={colors.bandText2}
+            accessible={false}
+          />
+        )}
+      </View>
     </>
   );
   const style = [s.row, !last && s.rowLine];
@@ -731,9 +735,13 @@ const s = StyleSheet.create({
     minHeight: 64,
     paddingVertical: 12,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: 12,
+    columnGap: 12,
+    rowGap: 8,
   },
+  rowText: { flexGrow: 1, flexShrink: 0, flexBasis: 150, maxWidth: "100%", gap: 2 },
+  rowEnd: { flexDirection: "row", alignItems: "center", gap: 12, marginLeft: "auto" },
   rowLine: { borderBottomWidth: 1, borderBottomColor: colors.bandLine },
   rowLabel: { ...type.option, fontFamily: fonts.regular, color: colors.ink },
   rowSub: { ...type.small, color: colors.bandText2 },

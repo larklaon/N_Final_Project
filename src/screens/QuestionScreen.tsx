@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { useFocusEffect, useRouter, type Href } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -145,6 +146,7 @@ export function QuestionScreen() {
 }
 
 function ScopedQuestionScreen() {
+  const narrow = useWindowDimensions().width < 380;
   const { repo, snapshot, refresh, now, auth, refreshAuth } = useApp();
   const router = useRouter();
   const { open, overlay } = useGapTransition();
@@ -212,6 +214,8 @@ function ScopedQuestionScreen() {
         style={({ pressed }) => [s.mapButton, pressed && { opacity: 0.7 }]}
       >
         <PuzzleMap
+          // A narrow phone keeps the close button on screen with slightly smaller pieces.
+          size={narrow ? 6 : 8}
           levels={area.pieces.map((p) => p.band)}
           ring={
             answered?.correct && answered.graded && concept
@@ -221,12 +225,13 @@ function ScopedQuestionScreen() {
                 : []
           }
         />
-        <Text style={[s.headerText, answered?.correct && { color: colors.mint }]}>
+        <Text maxFontSizeMultiplier={1.1} style={[s.headerText, answered?.correct && { color: colors.mint }]}>
           {area.average}%
         </Text>
       </Pressable>
       <View style={s.headerRight}>
         <Text
+          maxFontSizeMultiplier={1.1}
           style={s.headerText}
           accessibilityLabel={`오늘 ${dailyCount(snapshot, now)}문제, 목표 ${snapshot.settings.dailyGoal}문제`}
         >
