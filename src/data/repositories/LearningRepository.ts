@@ -317,6 +317,17 @@ export class LearningRepository {
     if (!generated) throw Error("문제를 찾지 못했어요.");
     return generated;
   }
+  /** V4: new observations (wrong answers, the learner's chat turns) for the memory extractor. */
+  extractionInput(learnerId = this.activeLearner) {
+    const s = this.snapshot(learnerId);
+    return this.personal.extractionInput(learnerId, s.concepts.map((c) => c.id), (id) => {
+      try {
+        return this.quiz(id, learnerId);
+      } catch {
+        return null;
+      }
+    });
+  }
   /** The last answer given to this piece on the lock screen or widget, with the question asked. */
   lastGapAnswer(
     conceptId: string,

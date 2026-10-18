@@ -1,5 +1,14 @@
 # 개발 기록
 
+## 2026-10-18 — V4.C2 — 근거 · 헷갈림 메모리
+
+- 근거 조회(`extractionInput`): 최근 14일의 채점된 앱 오답(선택 보기 포함, 전용 조회)과 틈새 오답, 답이 끝난 학습자 채팅 발언(직전 assistant 답은 맥락으로만, 최대 20개·8,000자). V4 기준 자료 4개념만, 처리한 근거(checkpoint, event/message id)는 다시 보내지 않는다. 답이 오지 않은(실패·취소·진행 중) 발언은 뺀다.
+- 추출 계약(`memoryInstructions`, `parseMemoryCandidates`): 알려진 개념·skill, 이번 입력에 실제로 넣은 ref만, summary 120자·한 줄, wrong-choice는 오답 근거 필요, learner-statement는 학습자 본인의 단순 질문이 아닌 발언 필요(추천 칩·8자 미만은 질문으로 본다). 후보 0개는 정상. 짝 skill(스택–큐)은 양쪽 개념의 근거를 인정한다.
+- 상태(`memoryStatus`, 앱 코드가 계산): 오답 1건은 candidate, 서로 다른 문제 2건·같은 문제 다른 날짜·명확한 발언은 active. 마지막 오답 이후 확인 정답 1회는 improving, 다른 날짜·다른 문제·24시간 간격 2회는 resolved, 새 오답은 active로 복귀. AI confidence는 쓰지 않는다.
+- 저장(`applyCandidates`): 소유자·scope·과목 재확인, 개념당 열린 메모리 3개, 근거는 memoryId+출처 유일, 보낸 근거 전부 checkpoint. 무시(`ignoreMemory`)하면 archived로 두고 그 근거를 ignored로 표시해 재사용을 막는다. 새 근거가 오면 candidate부터 다시. 30일 소식 없는 메모리는 archived(resolved와 별개).
+- 아직 개발 중인 v6 스키마의 confusion_evidence에 quizId·localDate를 더했다(에뮬레이터 DB는 v5 그대로라 영향 없음).
+- 검증: Jest 112(신규 8: 근거 범위·미완료 발언 제외, 가짜 ref·단순 질문·모르는 skill·긴 요약·비JSON 거절, 중복 적용 1회, 상태 전이 표, 발언 단독 active, 무시 후 재사용 금지·새 근거로 재시작, 30일 archived, 초기화 뒤 옛 작업 거절)·lint·콘텐츠.
+
 ## 2026-10-18 — V4.C1 — 기준 자료 · 저장 구조
 
 - 기준 자료 대조(개발자 확인, 전문가 검수 아님): 공식 문서를 직접 읽고 `src/data/content/generation-basis.json`(basisId `v4-basis` v1)에 사실을 요약했다.

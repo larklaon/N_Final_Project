@@ -3,8 +3,17 @@ import {
   LIMITS,
   PROMPT_VERSION,
   basis,
+  basisFor,
   approvedFacts,
   contentHash,
+  isStale,
+  memoryStatus,
+  type EvidenceItem,
+  type EvidenceRecord,
+  type ExtractionInput,
+  type MemoryCandidate,
+  type MemoryStatus,
+  type MemoryView,
 } from "../../domain/personalization";
 import type { Quiz, QuizOrigin } from "../../domain/types";
 import type { Db } from "./LearningRepository";
@@ -278,6 +287,272 @@ export class PersonalizationStore {
   }
   expireOld(now = this.clock()) {
     this.db.runSync("UPDATE generated_questions SET status='expired' WHERE status='approved' AND expiresAt<=?", now);
+  }
+
+  /* ───────────── C2: evidence and memories ───────────── */
+
+  private processed(learnerId: string, kind: string, id: string) {
+    return !!this.db.getFirstSync(
+      "SELECT 1 FROM evidence_checkpoints WHERE learnerId=? AND sourceKind=? AND sourceId=?",
+      learnerId,
+      kind,
+      id,
+    );
+  }
+
+  /**
+   * New observations for the extractor: wrong graded app answers and wrong gap answers of the
+   * last 14 days, and the learner's completed chat messages, all for basis concepts of this
+   * subject and not processed before. Unanswered (failed/cancelled) chat turns are left out.
+   */
+  extractionInput(
+    learnerId: string,
+    conceptIds: string[],
+    quizOf: (quizId: string) => { prompt: string; options: { id: string; text: string }[]; correctOptionId: string; contentVersion: number } | null,
+  ): ExtractionInput {
+    const now = this.clock();
+    const since = now - LIMITS.evidenceDays * 86_400_000;
+    const inBasis = conceptIds.filter((c) => basisFor(c));
+    const marks = inBasis.map(() => "?").join(",") || "''";
+    const evidence: EvidenceItem[] = [];
+    const answers = [
+      ...this.db
+        .getAllSync<{ id: string; conceptId: string; quizId: string; selectedOptionId: string; answeredAt: number; localDate: string }>(
+          `SELECT id,conceptId,quizId,selectedOptionId,answeredAt,localDate FROM attempts WHERE learnerId=? AND isGraded=1 AND correct=0 AND answeredAt>=? AND conceptId IN (${marks}) ORDER BY answeredAt DESC`,
+          learnerId,
+          since,
+          ...inBasis,
+        )
+        .map((r) => ({ ...r, kind: "attempt" as const })),
+      ...this.db
+        .getAllSync<{ id: string; conceptId: string; quizId: string; selectedOptionId: string; answeredAt: number; localDate: string }>(
+          `SELECT id,conceptId,questionId AS quizId,selectedOptionId,answeredAt,localDate FROM gap_events WHERE learnerId=? AND correct=0 AND answeredAt>=? AND conceptId IN (${marks}) ORDER BY answeredAt DESC`,
+          learnerId,
+          since,
+          ...inBasis,
+        )
+        .map((r) => ({ ...r, kind: "gap" as const })),
+    ].sort((a, b) => b.answeredAt - a.answeredAt);
+    for (const a of answers) {
+      if (evidence.length >= LIMITS.maxWrongAnswers) break;
+      if (this.processed(learnerId, a.kind, a.id)) continue;
+      const q = quizOf(a.quizId);
+      if (!q) continue;
+      const text = (id: string) => q.options.find((o) => o.id === id)?.text ?? id;
+      evidence.push({
+        ref: `${a.kind}:${a.id}`,
+        kind: a.kind,
+        sourceId: a.id,
+        conceptId: a.conceptId,
+        quizId: a.quizId,
+        contentVersion: q.contentVersion,
+        prompt: q.prompt,
+        chosen: text(a.selectedOptionId),
+        correct: text(q.correctOptionId),
+        answeredAt: a.answeredAt,
+        localDate: a.localDate,
+      });
+    }
+    let chars = 0;
+    let chats = 0;
+    for (const conceptId of inBasis) {
+      const messages = this.db.getAllSync<{ id: string; role: "user" | "assistant"; text: string; createdAt: number }>(
+        "SELECT id,role,text,createdAt FROM chat_messages WHERE learnerId=? AND conceptId=? AND createdAt>=? ORDER BY createdAt,rowid",
+        learnerId,
+        conceptId,
+        since,
+      );
+      messages.forEach((m, i) => {
+        if (m.role !== "user" || chats >= LIMITS.maxChatMessages) return;
+        if (messages[i + 1]?.role !== "assistant") return; // No completed reply: failed, cancelled or streaming.
+        if (this.processed(learnerId, "chat", m.id)) return;
+        const before = i > 0 && messages[i - 1].role === "assistant" ? messages[i - 1].text.slice(0, 300) : null;
+        const size = m.text.length + (before?.length ?? 0);
+        if (chars + size > LIMITS.maxChatChars) return;
+        chars += size;
+        chats++;
+        evidence.push({
+          ref: `chat:${m.id}`,
+          kind: "chat",
+          sourceId: m.id,
+          conceptId,
+          text: m.text,
+          contextBefore: before,
+          answeredAt: m.createdAt,
+          localDate: localDate(m.createdAt),
+        });
+      });
+    }
+    return {
+      evidence,
+      memories: this.memories(learnerId).filter((m) => inBasis.includes(m.conceptId) && m.status !== "archived"),
+      skills: inBasis.flatMap((c) => basisFor(c)!.skills.map((s) => ({ conceptId: c, skillKey: s.skillKey, label: s.label }))),
+    };
+  }
+
+  memories(learnerId: string, subjectId?: string): (MemoryView & { subjectId: string })[] {
+    return this.db.getAllSync<MemoryView & { subjectId: string }>(
+      `SELECT id,subjectId,conceptId,skillKey,summary,status,lastEvidenceAt,lastCheckAt FROM confusion_memories WHERE learnerId=?${subjectId ? " AND subjectId=?" : ""} ORDER BY lastEvidenceAt DESC`,
+      ...(subjectId ? [learnerId, subjectId] : [learnerId]),
+    );
+  }
+  memory(learnerId: string, memoryId: string) {
+    return this.memories(learnerId).find((m) => m.id === memoryId) ?? null;
+  }
+  private evidenceOf(memoryId: string): EvidenceRecord[] {
+    return this.db.getAllSync<EvidenceRecord>(
+      "SELECT sourceKind,sourceId,quizId,evidenceType,occurredAt,localDate FROM confusion_evidence WHERE memoryId=?",
+      memoryId,
+    );
+  }
+  /** Recomputes and stores the status of one memory from its evidence. Inside a transaction. */
+  private restatus(memoryId: string) {
+    const m = this.db.getFirstSync<{ status: MemoryStatus; data: string }>(
+      "SELECT status,data FROM confusion_memories WHERE id=?",
+      memoryId,
+    );
+    if (!m || m.status === "archived") return;
+    const next = memoryStatus(this.evidenceOf(memoryId));
+    if (next && next !== m.status)
+      this.db.runSync("UPDATE confusion_memories SET status=?,revision=revision+1 WHERE id=?", next, memoryId);
+  }
+
+  /**
+   * Saves validated candidates with their evidence and marks every sent observation as
+   * processed. Refused as a whole if the owner moved on while the AI was working.
+   * Returns the ids of memories that changed.
+   */
+  applyCandidates(owner: Owner, input: ExtractionInput, candidates: MemoryCandidate[]): string[] | null {
+    if (!this.isCurrent(owner)) return null;
+    const now = this.clock();
+    const byRef = new Map(input.evidence.map((e) => [e.ref, e]));
+    const changed: string[] = [];
+    this.db.withTransactionSync(() => {
+      for (const c of candidates) {
+        const ignored = c.evidenceRefs.some((r) => {
+          const e = byRef.get(r)!;
+          return !!this.db.getFirstSync(
+            "SELECT 1 FROM evidence_checkpoints WHERE learnerId=? AND sourceKind=? AND sourceId=? AND ignored=1",
+            owner.learnerId,
+            e.kind,
+            e.sourceId,
+          );
+        });
+        if (ignored) continue;
+        let row = this.db.getFirstSync<{ id: string; status: MemoryStatus }>(
+          "SELECT id,status FROM confusion_memories WHERE learnerId=? AND subjectId=? AND conceptId=? AND skillKey=?",
+          owner.learnerId,
+          owner.subjectId,
+          c.conceptId,
+          c.skillKey,
+        );
+        if (!row) {
+          const open = this.db.getFirstSync<{ n: number }>(
+            "SELECT COUNT(*) n FROM confusion_memories WHERE learnerId=? AND subjectId=? AND conceptId=? AND status IN ('candidate','active','improving')",
+            owner.learnerId,
+            owner.subjectId,
+            c.conceptId,
+          )!.n;
+          if (open >= LIMITS.memoriesPerConcept) continue;
+          const id = this.uuid();
+          this.db.runSync(
+            "INSERT INTO confusion_memories(id,learnerId,subjectId,conceptId,skillKey,summary,status,revision,createdAt,lastEvidenceAt,lastCheckAt,data) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            id,
+            owner.learnerId,
+            owner.subjectId,
+            c.conceptId,
+            c.skillKey,
+            c.summary,
+            "candidate",
+            0,
+            now,
+            now,
+            null,
+            "{}",
+          );
+          row = { id, status: "candidate" };
+        } else if (row.status === "archived") {
+          // New evidence after an ignore or a long pause starts the memory over.
+          this.db.runSync(
+            "UPDATE confusion_memories SET status='candidate',summary=?,data='{}',revision=revision+1 WHERE id=?",
+            c.summary,
+            row.id,
+          );
+        }
+        let added = 0;
+        for (const r of c.evidenceRefs) {
+          const e = byRef.get(r)!;
+          added += this.db.runSync(
+            "INSERT OR IGNORE INTO confusion_evidence VALUES (?,?,?,?,?,?,?,?,?,?)",
+            this.uuid(),
+            row.id,
+            owner.learnerId,
+            e.kind,
+            e.sourceId,
+            e.kind === "chat" ? "chat" : String(e.contentVersion),
+            e.kind === "chat" ? null : e.quizId,
+            e.localDate,
+            e.answeredAt,
+            e.kind === "chat" ? "learner-statement" : "wrong-answer",
+          ).changes;
+        }
+        if (added === 0) continue;
+        const latest = Math.max(...c.evidenceRefs.map((r) => byRef.get(r)!.answeredAt));
+        this.db.runSync(
+          "UPDATE confusion_memories SET lastEvidenceAt=MAX(lastEvidenceAt,?),summary=?,revision=revision+1 WHERE id=?",
+          latest,
+          c.summary,
+          row.id,
+        );
+        this.restatus(row.id);
+        changed.push(row.id);
+      }
+      for (const e of input.evidence)
+        this.db.runSync(
+          "INSERT OR IGNORE INTO evidence_checkpoints VALUES (?,?,?,?,0)",
+          owner.learnerId,
+          e.kind,
+          e.sourceId,
+          now,
+        );
+    });
+    return changed;
+  }
+
+  /** The learner dismissed a memory: archive it and never reuse those observations. */
+  ignoreMemory(learnerId: string, memoryId: string) {
+    let ok = false;
+    this.db.withTransactionSync(() => {
+      const m = this.db.getFirstSync<{ id: string }>(
+        "SELECT id FROM confusion_memories WHERE id=? AND learnerId=?",
+        memoryId,
+        learnerId,
+      );
+      if (!m) return;
+      for (const e of this.evidenceOf(memoryId))
+        this.db.runSync(
+          "INSERT INTO evidence_checkpoints VALUES (?,?,?,?,1) ON CONFLICT(learnerId,sourceKind,sourceId) DO UPDATE SET ignored=1",
+          learnerId,
+          e.sourceKind,
+          e.sourceId,
+          this.clock(),
+        );
+      this.db.runSync("DELETE FROM confusion_evidence WHERE memoryId=?", memoryId);
+      this.db.runSync(
+        "UPDATE confusion_memories SET status='archived',data=?,revision=revision+1 WHERE id=?",
+        JSON.stringify({ ignoredAt: this.clock() }),
+        memoryId,
+      );
+      ok = true;
+    });
+    return ok;
+  }
+  /** Memories without new evidence or checks for 30 days fade to archived (not resolved). */
+  archiveStale(learnerId: string) {
+    const now = this.clock();
+    for (const m of this.memories(learnerId))
+      if (isStale(m, now))
+        this.db.runSync("UPDATE confusion_memories SET status='archived',revision=revision+1 WHERE id=?", m.id);
   }
 
   /** "Reset learning" removes personal V4 records but keeps today's budget rows. */
