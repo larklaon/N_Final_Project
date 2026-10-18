@@ -124,7 +124,7 @@ test("v1 migration retains an existing graded attempt", () => {
   expect(
     db.getFirstSync<{ user_version: number }>("PRAGMA user_version")
       ?.user_version,
-  ).toBe(5);
+  ).toBe(6);
 });
 
 test("reset disables only the current learner gap cards and survives reopen", () => {
@@ -289,7 +289,7 @@ test("chat history is kept per concept and learner, survives reopen and resets w
   expect(reopened.chatMessages("db-primary")).toEqual([]);
   expect(
     db.getFirstSync<{ user_version: number }>("PRAGMA user_version")?.user_version,
-  ).toBe(5);
+  ).toBe(6);
 });
 
 test("installing a subject switches the learner to that pack only; records stay per subject", () => {

@@ -1,6 +1,16 @@
 import type { Progress } from "./review";
 import type { Knowledge } from "./resolution";
 export type SourceRef = { title: string; url: string; checkedAt: string };
+/** V4: where an AI-made question came from. Bundled questions have no origin. */
+export type QuizOrigin = {
+  kind: "generated";
+  generatedId: string;
+  memoryId: string | null;
+  skillKey: string;
+  basisId: string;
+  basisVersion: number;
+  factIds: string[];
+};
 export type Concept = {
   id: string;
   /** Which study pack this piece belongs to. */
@@ -36,6 +46,7 @@ export type Quiz = {
   explanation: string;
   sourceRefs: SourceRef[];
   contentVersion: number;
+  origin?: QuizOrigin;
 };
 export type Settings = {
   /** The one subject being studied now (V3: one at a time). */
@@ -49,6 +60,10 @@ export type Settings = {
   aiConsentAt: number | null;
   onboarded: boolean;
   planWelcomeDismissed?: boolean;
+  /** V4 "AI 맞춤 학습": off until the learner turns it on, separate from aiConsentAt. */
+  personalizationEnabled: boolean;
+  personalizationConsentAt: number | null;
+  personalizationConsentVersion: string | null;
 };
 export type Session = {
   id: string;
@@ -61,6 +76,8 @@ export type Session = {
   practice: boolean;
   startedAt: number;
   answer?: { selected: string; correct: boolean; graded: boolean };
+  /** V4: this session is today's check question for a confusion memory. */
+  checkMemoryId?: string;
 };
 export type Attempt = {
   id: string;

@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import { defaultPackId, packOf, packs } from "../content/packs";
-import { chatSchema, gapSchema, schema, v3Schema } from "../db/schema";
+import { chatSchema, gapSchema, schema, v3Schema, v6Schema } from "../db/schema";
+import { PersonalizationStore } from "./PersonalizationStore";
 import { advanceGap, requeueGap } from "../../domain/gap";
 import { termQuestion } from "../../domain/term";
 import type { Plan } from "../../domain/plan";
@@ -46,6 +47,9 @@ export const defaultSettings: Settings = {
   aiConsentAt: null,
   onboarded: false,
   planWelcomeDismissed: false,
+  personalizationEnabled: false,
+  personalizationConsentAt: null,
+  personalizationConsentVersion: null,
 };
 export class LearningRepository {
   private scopeListeners = new Set<() => void>();
@@ -73,7 +77,7 @@ export class LearningRepository {
     const version = db.getFirstSync<{ user_version: number }>(
       "PRAGMA user_version",
     )!.user_version;
-    if (version > 5)
+    if (version > 6)
       throw Error(
         "이 버전의 앱에서 데이터를 열 수 없어요. 앱 업데이트를 확인해 주세요.",
       );
@@ -97,6 +101,12 @@ export class LearningRepository {
             this.clock(),
           );
       });
+    if (version < 6) db.withTransactionSync(() => db.execSync(v6Schema));
+    this.personal = new PersonalizationStore(db, uuid, clock, (o) =>
+      o.learnerId === this.activeLearner &&
+      o.scope === this.learningScope &&
+      packOf(this.snapshot().settings.subjectId).id === o.subjectId,
+    );
     db.withTransactionSync(() => {
       // Every bundled pack is seeded; "installing" only makes it selectable.
       const all = packs.flatMap((p) =>
@@ -124,6 +134,8 @@ export class LearningRepository {
     if (version > 0 && version < 5)
       db.withTransactionSync(() => this.replayKnowledge());
   }
+  /** V4 personalization storage (memories, generated questions, budgets). */
+  readonly personal: PersonalizationStore;
   private meta(key: string) {
     return this.db.getFirstSync<{ value: string }>(
       "SELECT value FROM app_meta WHERE key=?",
@@ -288,7 +300,13 @@ export class LearningRepository {
     });
     this.notifyScopeChange(previousScope);
   }
-  quiz(id: string): Quiz {
+  quiz(id: string, learnerId = this.activeLearner): Quiz {
+    // AI-made questions belong to one learner; another learner's id does not resolve.
+    if (id.startsWith("ai:")) {
+      const own = this.personal.quiz(id, learnerId);
+      if (!own) throw Error("문제를 찾지 못했어요.");
+      return own;
+    }
     const row = this.db.getFirstSync<{ data: string }>(
       "SELECT data FROM quizzes WHERE id=?",
       id,
@@ -314,7 +332,7 @@ export class LearningRepository {
       learnerId,
       conceptId,
     );
-    const quiz = row && this.questionIndex().get(row.questionId);
+    const quiz = row && this.questionIndex(learnerId).get(row.questionId);
     if (!row || !quiz) return null;
     return {
       quiz,
@@ -373,13 +391,17 @@ export class LearningRepository {
       .map((r) => JSON.parse(r.data) as Quiz);
     return this.allQuestions;
   }
-  /** Authored questions plus the widget's generated term questions, by id. */
-  private questionIndex() {
+  /**
+   * Authored questions plus the widget's generated term questions, by id. With a learner,
+   * also that learner's AI-made questions (hidden/expired originals included, for history).
+   */
+  private questionIndex(learnerId?: string) {
     const concepts = this.db
       .getAllSync<{ data: string }>("SELECT data FROM concepts")
       .map((r) => JSON.parse(r.data) as Concept);
     const terms = concepts.flatMap((c) => termQuestion(c, concepts) ?? []);
-    return new Map([...this.questions(), ...terms].map((q) => [q.id, q]));
+    const own = learnerId ? this.personal.allQuizzes(learnerId) : [];
+    return new Map([...this.questions(), ...terms, ...own].map((q) => [q.id, q]));
   }
   private replayKnowledge() {
     const answers = [
@@ -441,7 +463,10 @@ export class LearningRepository {
       const touched = new Set<string>();
       for (const e of [...events].sort((a, b) => a.answeredAt - b.answeredAt)) {
         handled.push(e.id);
-        const q = byId.get(e.questionId);
+        // AI-made cards resolve only for the learner who owns them.
+        const q = e.questionId.startsWith("ai:")
+          ? this.personal.quiz(e.questionId, e.learnerId) ?? undefined
+          : byId.get(e.questionId);
         const known = this.db.getFirstSync<{ id: string }>(
           "SELECT id FROM learners WHERE id=?",
           e.learnerId,
@@ -759,6 +784,7 @@ export class LearningRepository {
         "automation_jobs",
       ])
         this.db.runSync(`DELETE FROM ${table} WHERE learnerId=?`, learner);
+      this.personal.resetLearner(learner);
       const settings = {
         ...this.snapshot().settings,
         gapEnabled: false,

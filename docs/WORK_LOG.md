@@ -1,5 +1,18 @@
 # 개발 기록
 
+## 2026-10-18 — V4.C1 — 기준 자료 · 저장 구조
+
+- 기준 자료 대조(개발자 확인, 전문가 검수 아님): 공식 문서를 직접 읽고 `src/data/content/generation-basis.json`(basisId `v4-basis` v1)에 사실을 요약했다.
+  - Python Tutorial 5.1.1/5.1.2: 스택은 마지막에 넣은 것을 먼저 꺼낸다(LIFO), 큐는 먼저 넣은 것을 먼저 꺼낸다(FIFO), 넣고 꺼내는 끝.
+  - PostgreSQL 5.5.4/5.5.5: 기본키는 유일·NOT NULL, 여러 열 가능, 테이블당 최대 하나. 외래키 값은 참조 테이블의 행과 일치(참조 무결성), 기본키뿐 아니라 유일 제약 열도 참조 가능(PostgreSQL 기준으로 조건 명시).
+  - 외래키 열의 NULL 처리는 MATCH 옵션·DBMS에 따라 달라 `excluded`로 두고 어떤 skill에도 넣지 않았다.
+  - skill: `stack-queue-order`(스택·큐 공통), `pk-rules`, `fk-rules`, `pk-fk-role`. 짝 헷갈림이 양쪽 사실을 인용할 수 있게 사실은 기준 자료 전체에서 찾는다. 기존 catalog의 `ai-draft`/`출처 대조 전` 표시는 바꾸지 않았다.
+- DB v6(`v6Schema`): confusion_memories(소유자+과목+개념+skillKey 유일), confusion_evidence(memoryId+sourceKind+sourceId 유일), evidence_checkpoints, generated_questions(소유자 필수, 내용 해시 중복 금지, 승인 후 불변), personalization_jobs(같은 입력 성공 중복 금지), personalization_budget(학습자+날짜), check_assignments(학습자+날짜). 마이그레이션은 트랜잭션, 더 새 DB는 열지 않는다.
+- 설정: `personalizationEnabled`(기본 off), 동의 시각·버전. 기존 AI 전송 동의와 별개.
+- `PersonalizationStore`: 한도 예약(넘으면 거절, 환불 없음), 승인 문제 저장(현재 학습자·learningScope·과목 확인, 하루 승인 한도, 정규화 해시 중복 거절, 근거 사실은 승인된 것만, `ai:<UUID>` id, 출처는 기준 자료에서 앱이 구성, 잠금 화면 short = prompt), 소유자 확인 조회, 숨기기·만료, 초기화(한도 행은 유지). 전체 삭제는 학습자 cascade로 한도까지 지운다.
+- `quiz()`와 틈새 응답 수집은 `ai:` 문제를 이벤트 주인 학습자로만 찾는다.
+- 검증: typecheck·lint·Jest 104(신규 7: v5→v6 보존, 새 DB 거절, 기준 자료 승인/제외, 한도·재실행·초기화·삭제, 소유·중복·한도·불변, 과목 왕복 뒤 옛 작업 거절, 미승인 사실 거절)·콘텐츠. 마이그레이션 실패 rollback은 트랜잭션에 기대며 실패 주입 테스트는 없다.
+
 ## 2026-10-18 — V4.PLAN — 개인화 학습 구현 명세
 
 - 사용자 승인 방향(헷갈림 메모리+AI 틈새 카드+제한된 확인 문제)을 PLAN_V4에 구체화했다. 3번 연결 그림은 보류, 5번 과목 생성은 제외한다.

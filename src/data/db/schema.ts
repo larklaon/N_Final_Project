@@ -41,3 +41,21 @@ CREATE TABLE IF NOT EXISTS knowledge_state (learnerId TEXT NOT NULL REFERENCES l
 CREATE TABLE IF NOT EXISTS plans (learnerId TEXT NOT NULL REFERENCES learners(id) ON DELETE CASCADE, subjectId TEXT NOT NULL, createdAt INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY(learnerId,subjectId));
 PRAGMA user_version=5;
 `;
+
+/**
+ * V6 (app V4): confusion memories with their evidence, AI-made questions (immutable once
+ * approved), personalization jobs, per-day budgets and the daily check assignment.
+ * The budget survives "reset learning" so a reset cannot reopen today's quota.
+ */
+export const v6Schema = `
+CREATE TABLE IF NOT EXISTS confusion_memories (id TEXT PRIMARY KEY, learnerId TEXT NOT NULL REFERENCES learners(id) ON DELETE CASCADE, subjectId TEXT NOT NULL, conceptId TEXT NOT NULL REFERENCES concepts(id), skillKey TEXT NOT NULL, summary TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('candidate','active','improving','resolved','archived')), revision INTEGER NOT NULL DEFAULT 0, createdAt INTEGER NOT NULL, lastEvidenceAt INTEGER NOT NULL, lastCheckAt INTEGER, data TEXT NOT NULL DEFAULT '{}', UNIQUE(learnerId,subjectId,conceptId,skillKey));
+CREATE TABLE IF NOT EXISTS confusion_evidence (id TEXT PRIMARY KEY, memoryId TEXT NOT NULL REFERENCES confusion_memories(id) ON DELETE CASCADE, learnerId TEXT NOT NULL REFERENCES learners(id) ON DELETE CASCADE, sourceKind TEXT NOT NULL CHECK(sourceKind IN ('attempt','gap','chat')), sourceId TEXT NOT NULL, sourceVersion TEXT NOT NULL, occurredAt INTEGER NOT NULL, evidenceType TEXT NOT NULL CHECK(evidenceType IN ('wrong-answer','learner-statement','check-right','check-wrong')), UNIQUE(memoryId,sourceKind,sourceId));
+CREATE TABLE IF NOT EXISTS evidence_checkpoints (learnerId TEXT NOT NULL REFERENCES learners(id) ON DELETE CASCADE, sourceKind TEXT NOT NULL, sourceId TEXT NOT NULL, processedAt INTEGER NOT NULL, ignored INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(learnerId,sourceKind,sourceId));
+CREATE TABLE IF NOT EXISTS generated_questions (id TEXT PRIMARY KEY, learnerId TEXT NOT NULL REFERENCES learners(id) ON DELETE CASCADE, subjectId TEXT NOT NULL, conceptId TEXT NOT NULL REFERENCES concepts(id), memoryId TEXT REFERENCES confusion_memories(id) ON DELETE SET NULL, kind TEXT NOT NULL CHECK(kind IN ('gap','check')), quiz TEXT NOT NULL, basisId TEXT NOT NULL, basisVersion INTEGER NOT NULL, factIds TEXT NOT NULL, promptVersion TEXT NOT NULL, model TEXT NOT NULL, contentHash TEXT NOT NULL, createdAt INTEGER NOT NULL, expiresAt INTEGER NOT NULL, status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected','hidden','expired')), review TEXT NOT NULL DEFAULT '{}', UNIQUE(learnerId,subjectId,contentHash));
+CREATE INDEX IF NOT EXISTS generated_by_owner ON generated_questions(learnerId,subjectId,status);
+CREATE TABLE IF NOT EXISTS personalization_jobs (id TEXT PRIMARY KEY, learnerId TEXT NOT NULL REFERENCES learners(id) ON DELETE CASCADE, subjectId TEXT NOT NULL, capturedScope TEXT NOT NULL, inputFingerprint TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('queued','running','succeeded','failed','cancelled')), attemptCount INTEGER NOT NULL DEFAULT 0, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, errorCode TEXT);
+CREATE UNIQUE INDEX IF NOT EXISTS job_success ON personalization_jobs(learnerId,inputFingerprint) WHERE status='succeeded';
+CREATE TABLE IF NOT EXISTS personalization_budget (learnerId TEXT NOT NULL REFERENCES learners(id) ON DELETE CASCADE, localDate TEXT NOT NULL, timezone TEXT NOT NULL, dispatchCount INTEGER NOT NULL DEFAULT 0, pipelineAttempts INTEGER NOT NULL DEFAULT 0, gapApprovedCount INTEGER NOT NULL DEFAULT 0, checkApprovedCount INTEGER NOT NULL DEFAULT 0, checkServedCount INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(learnerId,localDate));
+CREATE TABLE IF NOT EXISTS check_assignments (learnerId TEXT NOT NULL REFERENCES learners(id) ON DELETE CASCADE, localDate TEXT NOT NULL, sessionId TEXT NOT NULL, quizId TEXT NOT NULL, memoryId TEXT NOT NULL, assignedAt INTEGER NOT NULL, PRIMARY KEY(learnerId,localDate));
+PRAGMA user_version=6;
+`;

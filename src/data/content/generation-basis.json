@@ -1,0 +1,129 @@
+{
+  "basisId": "v4-basis",
+  "version": 1,
+  "note": "Facts checked by the developer against the official pages on 2026-10-18. Automated cross-check only; not an expert review.",
+  "concepts": [
+    {
+      "conceptId": "ds-stack",
+      "skills": [
+        { "skillKey": "stack-queue-order", "label": "스택과 큐의 꺼내는 순서", "factIds": ["f-stack-lifo", "f-queue-fifo"] }
+      ],
+      "facts": [
+        {
+          "factId": "f-stack-lifo",
+          "text": "스택은 마지막에 넣은 항목을 가장 먼저 꺼낸다(후입선출, LIFO).",
+          "condition": "일반적인 스택 자료구조",
+          "source": { "title": "Python Tutorial 5.1.1 Using Lists as Stacks", "url": "https://docs.python.org/3/tutorial/datastructures.html#using-lists-as-stacks" },
+          "checkedAt": "2026-10-18",
+          "status": "approved"
+        },
+        {
+          "factId": "f-stack-top",
+          "text": "스택은 한쪽 끝(top)에 넣고 같은 끝에서 꺼낸다.",
+          "condition": "일반적인 스택 자료구조",
+          "source": { "title": "Python Tutorial 5.1.1 Using Lists as Stacks", "url": "https://docs.python.org/3/tutorial/datastructures.html#using-lists-as-stacks" },
+          "checkedAt": "2026-10-18",
+          "status": "approved"
+        }
+      ]
+    },
+    {
+      "conceptId": "ds-queue",
+      "skills": [
+        { "skillKey": "stack-queue-order", "label": "스택과 큐의 꺼내는 순서", "factIds": ["f-queue-fifo", "f-stack-lifo"] }
+      ],
+      "facts": [
+        {
+          "factId": "f-queue-fifo",
+          "text": "큐는 먼저 넣은 항목을 가장 먼저 꺼낸다(선입선출, FIFO).",
+          "condition": "일반적인 큐(우선순위 큐 제외)",
+          "source": { "title": "Python Tutorial 5.1.2 Using Lists as Queues", "url": "https://docs.python.org/3/tutorial/datastructures.html#using-lists-as-queues" },
+          "checkedAt": "2026-10-18",
+          "status": "approved"
+        },
+        {
+          "factId": "f-queue-ends",
+          "text": "큐는 한쪽 끝에 넣고 반대쪽 끝에서 꺼낸다.",
+          "condition": "일반적인 큐(우선순위 큐 제외)",
+          "source": { "title": "Python Tutorial 5.1.2 Using Lists as Queues", "url": "https://docs.python.org/3/tutorial/datastructures.html#using-lists-as-queues" },
+          "checkedAt": "2026-10-18",
+          "status": "approved"
+        }
+      ]
+    },
+    {
+      "conceptId": "db-primary",
+      "skills": [
+        { "skillKey": "pk-rules", "label": "기본키의 조건", "factIds": ["f-pk-unique-notnull", "f-pk-multi", "f-pk-one"] },
+        { "skillKey": "pk-fk-role", "label": "기본키와 외래키의 역할", "factIds": ["f-pk-unique-notnull", "f-fk-match"] }
+      ],
+      "facts": [
+        {
+          "factId": "f-pk-unique-notnull",
+          "text": "기본키 값은 유일해야 하고 NULL일 수 없다.",
+          "condition": "관계형 데이터베이스(PostgreSQL 문서 기준)",
+          "source": { "title": "PostgreSQL 5.5.4 Primary Keys", "url": "https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-PRIMARY-KEYS" },
+          "checkedAt": "2026-10-18",
+          "status": "approved"
+        },
+        {
+          "factId": "f-pk-multi",
+          "text": "기본키는 여러 열을 묶어서 만들 수 있다.",
+          "condition": "관계형 데이터베이스(PostgreSQL 문서 기준)",
+          "source": { "title": "PostgreSQL 5.5.4 Primary Keys", "url": "https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-PRIMARY-KEYS" },
+          "checkedAt": "2026-10-18",
+          "status": "approved"
+        },
+        {
+          "factId": "f-pk-one",
+          "text": "한 테이블의 기본키는 최대 하나다.",
+          "condition": "관계형 데이터베이스(PostgreSQL 문서 기준)",
+          "source": { "title": "PostgreSQL 5.5.4 Primary Keys", "url": "https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-PRIMARY-KEYS" },
+          "checkedAt": "2026-10-18",
+          "status": "approved"
+        },
+        {
+          "factId": "f-fk-match",
+          "text": "외래키 값은 참조하는 다른 테이블의 어떤 행에 있는 값과 일치해야 한다(참조 무결성).",
+          "condition": "관계형 데이터베이스(PostgreSQL 문서 기준), 외래키 열이 NULL이 아닐 때",
+          "source": { "title": "PostgreSQL 5.5.5 Foreign Keys", "url": "https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK" },
+          "checkedAt": "2026-10-18",
+          "status": "approved"
+        }
+      ]
+    },
+    {
+      "conceptId": "db-foreign",
+      "skills": [
+        { "skillKey": "fk-rules", "label": "외래키가 참조하는 것", "factIds": ["f-fk-match", "f-fk-target"] },
+        { "skillKey": "pk-fk-role", "label": "기본키와 외래키의 역할", "factIds": ["f-fk-match", "f-pk-unique-notnull"] }
+      ],
+      "facts": [
+        {
+          "factId": "f-fk-match",
+          "text": "외래키 값은 참조하는 다른 테이블의 어떤 행에 있는 값과 일치해야 한다(참조 무결성).",
+          "condition": "관계형 데이터베이스(PostgreSQL 문서 기준), 외래키 열이 NULL이 아닐 때",
+          "source": { "title": "PostgreSQL 5.5.5 Foreign Keys", "url": "https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK" },
+          "checkedAt": "2026-10-18",
+          "status": "approved"
+        },
+        {
+          "factId": "f-fk-target",
+          "text": "외래키는 기본키뿐 아니라 유일 제약이 걸린 열도 참조할 수 있다.",
+          "condition": "PostgreSQL 문서 기준",
+          "source": { "title": "PostgreSQL 5.5.5 Foreign Keys", "url": "https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK" },
+          "checkedAt": "2026-10-18",
+          "status": "approved"
+        },
+        {
+          "factId": "f-fk-null",
+          "text": "외래키 열이 NULL이면 보통 제약 검사를 받지 않는다.",
+          "condition": "MATCH 옵션과 DBMS에 따라 다르다",
+          "source": { "title": "PostgreSQL 5.5.5 Foreign Keys", "url": "https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK" },
+          "checkedAt": "2026-10-18",
+          "status": "excluded"
+        }
+      ]
+    }
+  ]
+}
