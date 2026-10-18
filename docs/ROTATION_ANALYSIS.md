@@ -60,3 +60,17 @@
 로컬 ignored `artifacts/rotation-analysis/`: BuildId, 역어셈블, 일반 실행 XML/캡처, 선택지 도달 결과, 자동 검사 로그/캡처. 크래시 원본은 `artifacts/v3-review-fixes/layout-confirm/crash.log`에 있다. 계정·토큰·사용자 학습 데이터는 보고서에 포함하지 않는다.
 
 이번에는 공식 패치 적용, 경쟁 순간 직접 계측, 장시간 반복 시작, release APK/물리 기기 확인을 하지 않았다. 분석 결과와 수정 완료를 구분한다.
+
+## 수정 적용 (2026-10-18, V3.NATIVE_FIX)
+
+위의 미적용 표시는 V3.RCA 당시 상태다. 이후 공식 PR #4413의 네 파일 전체를 설치된 screens 4.26.2에 backport했다. 변경은 `cpp/legacy/` 경로를 4.26.2의 `cpp/`로 맞춘 것뿐이다. singleton 초기화, callback 동기화, JNI 참조의 값 캡처, 소유권 토큰 및 invalidate 직렬화를 포함한다.
+
+- `patches/`에 패치와 버전·수정 전후 SHA-256 manifest를 보관한다. postinstall에서 자동 적용하며 재실행은 무변경, 다른 버전/수정된 원본/부분 적용은 명시적으로 실패한다. Expo57의 라이브러리 버전 관계는 유지했다.
+- 별도 fixture 검사 3개: 원본 적용 및 재적용, 버전 불일치 거절, 원본 변형 거절. 이 검사는 설치 재현성을 검증하며 native 경쟁 재현 검사는 아니다.
+- Android debug/AndroidTest APK 빌드 및 데이터 유지 설치 통과. APK에서 직접 추출한 `librnscreens.so`에 `setListener`/`clearListener` 심볼이 포함된 것도 확인했다.
+- 실제 React 문제 화면까지 진입하는 cold start **20/20** 통과, 앱 crash **0건**. 5·10·15·20회차에는 설정/퍼즐 화면 push·back과 세로→가로→세로 회전 후 같은 PID 유지도 확인했다.
+- 반복 검사 스크립트는 `scripts/native-startup-check.py`, 실행별 XML·crash 로그와 JSON은 로컬 ignored `artifacts/screens-fix/startup/`에 있다. 학습 답 제출·데이터 초기화·새 로그인은 하지 않았다.
+
+네이티브 수정 구현과 제한된 반복 검증을 완료했다. 희귀 경쟁 순간 직접 계측, 동일 조건의 무패치 대조군, 장시간 실행, release 및 물리 기기는 이번에 검증하지 않았다. 기존 크래시가 모든 상황에서 재발하지 않는다는 보증과 구분한다.
+
+가로 레이아웃 회귀 검사는 최초 빠른 스크롤에서 2/4로 실패했다. 같은 세로 ScrollView에서 중간 선택지를 지나치는 문제라 검사 속도를 90dp/s·거리 35%로 바꾸고 최대 관찰 횟수를 늘렸다. 앱 코드는 바꾸지 않았으며 기존 4개/48dp/버튼 단언을 유지해 **31.421초 OK(1 test)**를 확인했다. 실패와 수정 후 캡처를 각각 보존했다.

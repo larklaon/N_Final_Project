@@ -37,7 +37,7 @@ class LayoutTest {
    // actually be reached with a readable/tappable area, without submitting an answer.
    val reached=mutableSetOf<String>()
    val minimumTouch=ceil(48 * density).toInt()
-   for(step in 0..12) {
+   for(step in 0..24) {
      for(o in d.findObjects(By.descContains("번, "))) {
        val b=o.visibleBounds
        if(b.height()>=maxOf(minimum,minimumTouch)) reached.add(o.contentDescription)
@@ -46,10 +46,11 @@ class LayoutTest {
      // A question may contain a nested HorizontalScrollView for source code.
      // It can be reported first, even with clipped/inverted visible bounds.
      val scroll=d.wait(Until.findObject(By.clazz("android.widget.ScrollView").scrollable(true)),5000)
-     println("Layout probe step=$step reached=${reached.size} scroll=${scroll?.className} bounds=${scroll?.visibleBounds}")
+     println("Layout probe step=$step reached=$reached scroll=${scroll?.className} bounds=${scroll?.visibleBounds}")
      if(scroll==null) break
      scroll.setGestureMargin((24*density).toInt())
-     val more=scroll.scroll(Direction.DOWN,0.55f)
+     // Explicit slow swipes prevent fling inertia from skipping choices between samples.
+     val more=scroll.scroll(Direction.DOWN,0.35f,(90*density).toInt())
      println("Layout probe scrollMore=$more bounds=${scroll.visibleBounds}")
      if(!more) {
        for(o in d.findObjects(By.descContains("번, ")))

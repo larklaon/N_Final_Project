@@ -1,5 +1,13 @@
 # 개발 검증 결과
 
+## Android 네이티브 수정 (2026-10-18, V3.NATIVE_FIX)
+
+- screens4.26.2에 공식 #4413 패치를 적용하고 postinstall 버전/해시 검증으로 설치 재현성을 확보했다. SDK57 버전 관계는 유지한다.
+- 타입·린트·Jest97·패치 fixture3개·콘텐츠 구조, SIWC35/Gap14 Gradle 검사, debug/AndroidTest 빌드 통과. APK 내부 새 네이티브 함수도 확인했다.
+- API36 cold start 20/20, 앱 crash 0건. 이 중 4회 설정/퍼즐 왕복과 가로/세로 회전 후 같은 PID 유지. 기존 데이터/계정은 보존했다.
+- 가로 선택지 검사는 최초 빠른 scroll에서 2/4 실패. 앱이 살아 있는 캡처를 확보하고, 검사 속도를 낮춘 뒤 4개·48dp·확인 버튼 단언을 그대로 유지하여 31.421초 통과했다.
+- 세부 근거는 ROTATION_ANALYSIS/WORK_LOG 및 patches/README를 따른다. 장시간·물리 기기·release 및 경쟁 직접 계측은 미검증. 아래 미적용/미해결 기록은 이 수정 전의 상태다.
+
 ## 회전 문제 분석 후 정정 (2026-10-18, V3.RCA)
 
 - 가로 화면 0/4 실패는 테스트가 코드 블록의 HorizontalScrollView를 선택한 오류로 확정했다. vertical ScrollView로 대상을 고친 뒤 같은 가로100% LayoutTest가 50.251초에 통과했다. 일반 실행에서도 동일 PID로 회전·네 선택지 스크롤 도달을 확인했다.

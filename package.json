@@ -49,8 +49,10 @@
     "lint": "eslint .",
     "test": "jest --runInBand",
     "validate:content": "node scripts/validate-content.mjs",
-    "check": "npm run typecheck && npm run lint && npm test && npm run validate:content",
-    "doctor": "node scripts/doctor.mjs"
+    "check": "npm run typecheck && npm run lint && npm test && npm run validate:content && npm run test:native-patches",
+    "doctor": "node scripts/doctor.mjs",
+    "postinstall": "node scripts/apply-native-patches.mjs",
+    "test:native-patches": "node --test scripts/native-patches.test.mjs"
   },
   "private": true
 }

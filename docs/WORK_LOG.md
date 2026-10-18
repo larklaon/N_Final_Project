@@ -1,5 +1,18 @@
 # 개발 기록
 
+## 2026-10-18 — V3.NATIVE_FIX — Android screens listener 수명 수정
+
+- 상태: 공식 네이티브 수정 적용, Android 빌드·제한된 반복 실행 검증 완료.
+- 변경: screens 4.26.2에 upstream PR #4413의 네 파일을 backport했다. singleton listener, callback mutex·값으로 캡처한 JNI 참조, 소유권 토큰, 설치/무효화 직렬화를 포함한다. Expo57 의존성 버전은 유지한다.
+- 재현성: patches의 버전·수정 전후 SHA-256을 검사하는 postinstall을 추가했다. 정상 원본 적용·재적용, 버전 불일치, 원본 변형 거절 fixture 검사 3개를 npm check에 포함했다. Git이 필요하며 설치 스크립트 생략 시 수동 적용을 BUILD에 명시했다.
+- 검증: npm check(타입·린트·Jest97·콘텐츠72개/144카드/72문제·패치3개), Gradle SIWC35/Gap14 및 debug/AndroidTest 빌드 성공. APK 내 librnscreens.so에서 새 setListener/clearListener 심볼 확인. 데이터 유지 설치.
+- API36: 실제 React 문제 화면까지 cold start **20/20**, 앱 crash **0건**. 그중 4회에는 설정/퍼즐 push·back 및 세로→가로→세로 후 동일 PID 유지까지 확인했다. 계정 인증·정답 제출·학습 DB 삭제 없음.
+- 검사 도구 보강: 가로 LayoutTest가 빠른 기본 scroll의 관성으로 중간 보기를 건너뛰어 2/4로 실패했다. 느린 명시적 속도·짧은 간격으로 바꾸고 도달 선택지 로그를 추가했다. 단언(4개·48dp·버튼)은 유지했으며 재검사 **31.421초 OK(1 test)**. 앱 레이아웃 변경은 없다.
+- 증거: 로컬 ignored artifacts/screens-fix의 빌드 로그, 20회 JSON/XML/crash 로그, 최초 2/4 실패와 slow 검사 성공 캡처. 표시 설정 font1.0/density420/회전 원복.
+- APK: arm64 개발용·Metro 필요, SHA256 `28c3e28366f099e121b25648e5e0fd889caf10beda0ea77f53ef33bba4e0ea6a` (98,529,864 bytes). artifacts의 기존 배포용이 아닌 개발 APK 사본도 갱신했다.
+- 제한: 동시 초기화 순간 직접 계측·동일 조건 무패치 대조군·장시간 반복·release/물리 기기는 미검증이다. 기존 크래시의 유력 원인에 공식 수정을 적용했으며 모든 환경의 결함 부재를 입증한 것은 아니다.
+- 다음: 추후 SDK/screens 업데이트 시 upstream 포함 여부를 확인해 패치를 제거/재검토한다. 사람 테스트·모집은 추후 과제 메모로 유지한다.
+
 ## 2026-10-18 — V3.RCA — 회전 검사와 native 크래시 분리 분석
 
 - 분석: 실제 `libreactnative.so` BuildId와 tombstone 일치 확인, `pullTransaction+524`를 역어셈블하여 delegate의 `shouldOverridePullTransaction()` 간접 호출에서 heap 주소로 분기함을 확인했다.
