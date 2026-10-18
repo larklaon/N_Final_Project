@@ -260,6 +260,20 @@ export class LearningRepository {
       learner,
     );
   }
+  /** V4: something the native deck or the plan depends on changed (new card, memory). */
+  touchLearner(learner: string) {
+    this.db.withTransactionSync(() => this.touch(learner));
+  }
+  /** V4: new memories should reach the next 7-day plan, without an immediate extra request. */
+  markPlanDirty(learner: string, subjectId: string) {
+    this.setMeta(`planDirty:${learner}:${subjectId}`, String(this.clock()));
+  }
+  planDirty(learner: string, subjectId: string) {
+    return this.meta(`planDirty:${learner}:${subjectId}`) != null;
+  }
+  clearPlanDirty(learner: string, subjectId: string) {
+    this.db.runSync("DELETE FROM app_meta WHERE key=?", `planDirty:${learner}:${subjectId}`);
+  }
   selectProfile(profileId: string | null) {
     const previousScope = this.learningScope;
     const previousProfile = this.db.getFirstSync<{ profileId: string | null }>(

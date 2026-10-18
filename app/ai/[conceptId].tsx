@@ -23,6 +23,7 @@ import {
 import { aiErrorMessage } from "../../src/services/ai/errors";
 import { useProfileModels } from "../../src/services/ai/useProfileModels";
 import { openSubscriptionUsage } from "../../src/services/ai/subscriptionUsage";
+import { beginChat } from "../../src/services/ai/requestCoordinator";
 import { RichText } from "../../src/components/RichText";
 import type { ChatMessage } from "../../src/domain/types";
 import { colors, fonts, type } from "../../src/theme/tokens";
@@ -69,6 +70,8 @@ function AskAiScreen() {
     learner: string;
     scope: string;
     buffer: AiEvent[];
+    /** Lets background AI work run again once this chat turn is over. */
+    release: () => void;
   } | null>(null);
   const mounted = useRef(true);
   const handleEvent = useRef<(event: AiEvent) => void>(() => {});
@@ -113,6 +116,7 @@ function AskAiScreen() {
         return;
       if (event.type === "delta")
         setStreaming((t) => (t ?? "") + (event.text ?? ""));
+      if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") a.release();
       if (event.type === "completed") {
         repo.addChatMessage(a.learner, conceptId, "assistant", event.text ?? "");
         setMessages(repo.chatMessages(conceptId));
@@ -145,6 +149,7 @@ function AskAiScreen() {
       sub?.remove();
       appSub.remove();
       const id = active.current?.requestId;
+      active.current?.release();
       active.current = null;
       if (id) void getSiwc().cancelResponse(id);
     };
@@ -156,7 +161,13 @@ function AskAiScreen() {
     setError("");
     setFailed(false);
     setStreaming("");
-    const a = { requestId: null as string | null, learner: repo.activeLearner, scope: repo.learningScope, buffer: [] as AiEvent[] };
+    const a = {
+      requestId: null as string | null,
+      learner: repo.activeLearner,
+      scope: repo.learningScope,
+      buffer: [] as AiEvent[],
+      release: () => {},
+    };
     active.current = a;
     try {
       let current = repo.snapshot();
@@ -197,17 +208,22 @@ function AskAiScreen() {
           content: m.quote ? `「${m.quote}」\n\n${m.text}` : m.text,
         })),
       ];
+      // The learner's question goes first: background AI work is cancelled and waited for.
+      a.release = await beginChat();
+      if (active.current !== a || !mounted.current) return a.release();
       const result = await getSiwc().startResponse(
         JSON.stringify({ profileId: auth.profileId, model, instructions: chatInstructions, input }),
       );
       if (active.current !== a || !mounted.current || a.scope !== repo.learningScope) {
         void getSiwc().cancelResponse(result.requestId);
+        a.release();
         return;
       }
       a.requestId = result.requestId;
       // All events use the same transitions, whatever the bridge/promise ordering.
       for (const event of a.buffer.splice(0)) handleEvent.current(event);
     } catch (e) {
+      a.release();
       if (active.current === a) {
         active.current = null;
         setStreaming(null);

@@ -1,10 +1,12 @@
 import { Stack } from "expo-router";
 import { AppProvider } from "../src/platform/AppProvider";
+import { PersonalizationRunner } from "../src/services/ai/usePersonalization";
 import { colors } from "../src/theme/tokens";
 
 export default function Layout() {
   return (
     <AppProvider>
+      <PersonalizationRunner />
       {/* Light screens fade in over the band that has already filled the screen. */}
       <Stack
         screenOptions={{

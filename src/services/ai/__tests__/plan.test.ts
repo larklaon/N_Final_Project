@@ -2,8 +2,10 @@ import { database } from "../../../data/repositories/__tests__/database";
 import { LearningRepository } from "../../../data/repositories/LearningRepository";
 import { getSiwc, type AiEvent } from "../../../../modules/siwc-android";
 import { requestPlan } from "../plan";
+import { resetCoordinator } from "../requestCoordinator";
 
 jest.mock("../../../../modules/siwc-android", () => ({ getSiwc: jest.fn() }));
+beforeEach(() => resetCoordinator());
 
 const day = (note: string) => ({ focus: ["데이터베이스"], newCount: 3, reviewCount: 0, note });
 function gateway(replies: string[], early: boolean) {

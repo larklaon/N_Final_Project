@@ -1,58 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getSiwc, type AiEvent, type AuthSnapshot, type ModelChoice } from "../../../modules/siwc-android";
+import type { AuthSnapshot, ModelChoice } from "../../../modules/siwc-android";
+import { runRequest } from "./requestCoordinator";
 import { packOf } from "../../data/content/packs";
 import type { LearningRepository } from "../../data/repositories/LearningRepository";
 import { needsPlan, parsePlan, planInput, planInstructions, type Plan } from "../../domain/plan";
-
-/** Runs one Responses request and resolves with the completed text. */
-function complete(request: object, signal: AbortSignal, timeoutMs = 90_000): Promise<string> {
-  const gateway = getSiwc();
-  return new Promise((resolve, reject) => {
-    let requestId: string | null = null;
-    let settled = false;
-    const early: AiEvent[] = [];
-    let text = "";
-    const cancel = (id: string) => { void gateway.cancelResponse(id).catch(() => {}); };
-    const finish = (fn: () => void) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      sub.remove();
-      signal.removeEventListener("abort", abort);
-      early.length = 0;
-      fn();
-    };
-    const abort = () => {
-      finish(() => reject(Error("plan_invalidated")));
-      if (requestId) cancel(requestId);
-    };
-    const handle = (e: AiEvent) => {
-      if (settled) return;
-      if (requestId === null) return void early.push(e);
-      if (e.requestId !== requestId) return;
-      if (e.type === "delta") text += e.text ?? "";
-      if (e.type === "completed") finish(() => resolve(e.text ?? text));
-      if (e.type === "failed" || e.type === "cancelled")
-        finish(() => reject(Error(e.code ?? e.type)));
-    };
-    const sub = gateway.addListener("onResponse", handle);
-    const timer = setTimeout(() => {
-      finish(() => reject(Error("plan_timeout")));
-      if (requestId) cancel(requestId);
-    }, timeoutMs);
-    signal.addEventListener("abort", abort);
-    if (signal.aborted) return abort();
-    gateway.startResponse(JSON.stringify(request)).then(
-      (r) => {
-        requestId = r.requestId;
-        // The native start promise can arrive after a reset, timeout or completion.
-        if (settled) return cancel(requestId);
-        for (const e of early.splice(0)) handle(e);
-      },
-      (err) => finish(() => reject(err)),
-    );
-  });
-}
 
 /** Asks the coach for the next seven days and stores the plan. One retry on a malformed answer. */
 export async function requestPlan(
@@ -89,7 +40,7 @@ export async function requestPlan(
     let lastError: unknown;
     for (let attempt = 0; attempt < 2; attempt++) {
       assertCurrent();
-      const text = await complete({
+      const text = await runRequest("plan", {
         profileId: auth.profileId,
         model,
         instructions: planInstructions,

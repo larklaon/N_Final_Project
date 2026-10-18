@@ -555,6 +555,81 @@ export class PersonalizationStore {
         this.db.runSync("UPDATE confusion_memories SET status='archived',revision=revision+1 WHERE id=?", m.id);
   }
 
+  /* ───────────── C3: jobs and generation targets ───────────── */
+
+  /** Starts a job unless the same input already succeeded. Returns the job id or null. */
+  startJob(owner: Owner, inputFingerprint: string): string | null {
+    const now = this.clock();
+    let id: string | null = null;
+    this.db.withTransactionSync(() => {
+      if (
+        this.db.getFirstSync(
+          "SELECT 1 FROM personalization_jobs WHERE learnerId=? AND inputFingerprint=? AND status='succeeded'",
+          owner.learnerId,
+          inputFingerprint,
+        )
+      )
+        return;
+      id = this.uuid();
+      this.db.runSync(
+        "INSERT INTO personalization_jobs VALUES (?,?,?,?,?,?,?,?,?,?)",
+        id,
+        owner.learnerId,
+        owner.subjectId,
+        owner.scope,
+        inputFingerprint,
+        "running",
+        1,
+        now,
+        now,
+        null,
+      );
+    });
+    return id;
+  }
+  finishJob(id: string, status: "succeeded" | "failed" | "cancelled", errorCode: string | null = null) {
+    this.db.runSync(
+      "UPDATE personalization_jobs SET status=?,errorCode=?,updatedAt=? WHERE id=? AND status='running'",
+      status,
+      errorCode,
+      this.clock(),
+      id,
+    );
+  }
+  /** A job left running by a killed app is a failure, never a success. */
+  recoverInterrupted(learnerId: string) {
+    this.db.runSync(
+      "UPDATE personalization_jobs SET status='failed',errorCode='interrupted',updatedAt=? WHERE learnerId=? AND status='running'",
+      this.clock(),
+      learnerId,
+    );
+  }
+  lastJob(learnerId: string) {
+    return this.db.getFirstSync<{ status: string; errorCode: string | null; updatedAt: number }>(
+      "SELECT status,errorCode,updatedAt FROM personalization_jobs WHERE learnerId=? ORDER BY updatedAt DESC,rowid DESC LIMIT 1",
+      learnerId,
+    );
+  }
+  /** Live questions made for one memory. */
+  forMemory(learnerId: string, memoryId: string, kind: "gap" | "check", now = this.clock()) {
+    return this.db
+      .getAllSync<{ id: string; createdAt: number }>(
+        "SELECT id,createdAt FROM generated_questions WHERE learnerId=? AND memoryId=? AND kind=? AND status='approved' AND expiresAt>?",
+        learnerId,
+        memoryId,
+        kind,
+        now,
+      );
+  }
+  /** The first real answer (not just a showing) to one of the memory's gap cards. */
+  firstCardAnswer(learnerId: string, memoryId: string) {
+    return this.db.getFirstSync<{ id: string; answeredAt: number; localDate: string; correct: number }>(
+      "SELECT e.id,e.answeredAt,e.localDate,e.correct FROM gap_events e JOIN generated_questions g ON e.questionId='ai:'||g.id AND g.learnerId=e.learnerId WHERE e.learnerId=? AND g.memoryId=? AND g.kind='gap' ORDER BY e.answeredAt LIMIT 1",
+      learnerId,
+      memoryId,
+    );
+  }
+
   /** "Reset learning" removes personal V4 records but keeps today's budget rows. */
   resetLearner(learnerId: string) {
     for (const table of [
