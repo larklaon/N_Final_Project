@@ -151,6 +151,8 @@ export async function runPersonalization(
     if (targets.length > 0) {
       const text = await call(contentInstructions, { basisId: basis.basisId, targets });
       const drafts = parseContentCandidates(text, targets);
+      // Development builds only: see why nothing passed the checks (never shipped to users).
+      if (__DEV__ && drafts.length === 0) console.warn("[V4] no usable drafts", text.slice(0, 1500));
       if (drafts.length > 0) {
         const reviewText = await call(reviewInstructions, reviewInput(drafts));
         for (const { draft, review } of approvedByReview(reviewText, drafts)) {
