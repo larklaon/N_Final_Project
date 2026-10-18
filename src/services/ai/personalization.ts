@@ -97,10 +97,10 @@ export async function runPersonalization(
   if (auth.status !== "ready" || !auth.profileId) return skipped("not_ready");
   const model = settings.selectedModel && models.some((m) => m.slug === settings.selectedModel) ? settings.selectedModel : models[0]?.slug;
   if (!model) return skipped("no_model");
-  const owner = { learnerId: snapshot.learnerId, subjectId: packOf(settings.subjectId).id, scope: repo.learningScope };
+  const owner = { learnerId: snapshot.learnerId, subjectId: packOf(settings.subjectId).id, scope: repo.learningScope, generation: repo.personal.generation(snapshot.learnerId) };
   const current = () => {
     const s = repo.snapshot().settings;
-    return !signal.aborted && repo.learningScope === owner.scope && repo.activeLearner === owner.learnerId &&
+    return !signal.aborted && repo.personal.isOwnerCurrent(owner) && !!s.aiConsentAt && repo.learningScope === owner.scope && repo.activeLearner === owner.learnerId &&
       packOf(s.subjectId).id === owner.subjectId && s.personalizationEnabled && s.personalizationConsentAt === settings.personalizationConsentAt;
   };
   repo.personal.recoverInterrupted(owner.learnerId);

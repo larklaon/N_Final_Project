@@ -57,6 +57,15 @@ export const defaultSettings: Settings = {
 };
 export class LearningRepository {
   private scopeListeners = new Set<() => void>();
+  private personalizationInputListeners = new Set<() => void>();
+  onPersonalizationInput(listener: () => void) {
+    this.personalizationInputListeners.add(listener);
+    return () => { this.personalizationInputListeners.delete(listener); };
+  }
+  private notifyPersonalizationInput() {
+    for (const listener of this.personalizationInputListeners) listener();
+  }
+
   /** Changes only at learning ownership boundaries, not for ordinary answers/settings. */
   get learningScope() {
     return this.meta("learningScope") ?? "initial";
@@ -590,7 +599,8 @@ export class LearningRepository {
     );
     const existing = rows
       .map((r) => JSON.parse(r.data) as Session)
-      .find((row) => !row.answer && row.practice === practice);
+      .find((row) => !row.answer && row.practice === practice &&
+        (!row.checkMemoryId || this.canResumeCheck(row, s, this.clock())));
     if (existing) return existing;
     const quiz = this.quiz(`${conceptId}-deep`);
     // Shuffle once at session creation; the persisted order survives reopening.
@@ -635,6 +645,15 @@ export class LearningRepository {
         return !row.answer && !row.practice && !row.checkMemoryId;
       });
   }
+  private canResumeCheck(x: Session, s: LearningSnapshot, now: number): boolean {
+    if (!s.settings.personalizationEnabled || !s.settings.personalizationConsentAt || !x.checkMemoryId) return false;
+    const m = this.personal.memory(s.learnerId, x.checkMemoryId);
+    if (!m || !["active", "improving"].includes(m.status) || !s.concepts.some((c) => c.id === x.conceptId)) return false;
+    const row = this.personal.row(x.quizId.slice(3), s.learnerId);
+    // Expiry stops new assignments; a valid ongoing session may finish. Hiding/deletion stops resumption.
+    if (!row || !["approved", "expired"].includes(row.status) || row.expiresAt <= x.startedAt || row.memoryId !== m.id) return false;
+    return RULES.checkOnPractice || canGrade(s.progress[x.conceptId], x.revision, now);
+  }
   /**
    * V4 today's check question, inside the daily goal. One slot a day, taken atomically: an
    * unanswered check resumes (an earlier day's one takes today's slot), an answered one
@@ -658,19 +677,7 @@ export class LearningRepository {
       );
       return row ? (JSON.parse(row.data) as Session) : null;
     };
-    const usable = (x: Session) => {
-      const m = x.checkMemoryId ? this.personal.memory(learner, x.checkMemoryId) : null;
-      if (!m || (m.status !== "active" && m.status !== "improving")) return false;
-      const p = s.progress[x.conceptId];
-      if (!s.concepts.some((c) => c.id === x.conceptId)) return false;
-      if (!RULES.checkOnPractice && !canGrade(p, x.revision, now)) return false;
-      try {
-        this.quiz(x.quizId, learner);
-        return true;
-      } catch {
-        return false;
-      }
-    };
+    const usable = (x: Session) => this.canResumeCheck(x, s, now);
     const slot = this.personal.checkSlot(learner, date);
     if (slot) {
       const x = load(slot.sessionId);
@@ -749,8 +756,10 @@ export class LearningRepository {
       }
       if (!session.options.some((o) => o.id === selected))
         throw Error("선택지를 확인해 주세요.");
-      const quiz = this.quiz(session.quizId);
       const now = this.clock();
+      if (session.checkMemoryId && !this.canResumeCheck(session, this.snapshot(), now))
+        throw Error("확인 문제가 변경됐어요. 일반 문제로 이어 주세요.");
+      const quiz = this.quiz(session.quizId);
       const date = localDate(now);
       const learner = session.learnerId;
       const old = this.db.getFirstSync<{ data: string }>(
@@ -845,6 +854,10 @@ export class LearningRepository {
       quote: quote?.slice(0, 500) || null,
       createdAt: this.clock(),
     };
+    const previous = role === "assistant" ? this.db.getFirstSync<{ role: string }>(
+      "SELECT role FROM chat_messages WHERE learnerId=? AND conceptId=? ORDER BY createdAt DESC,rowid DESC LIMIT 1",
+      learner, conceptId,
+    ) : null;
     this.db.runSync(
       "INSERT INTO chat_messages VALUES (?,?,?,?,?,?,?)",
       message.id,
@@ -855,6 +868,7 @@ export class LearningRepository {
       message.quote,
       message.createdAt,
     );
+    if (role === "assistant" && previous?.role === "user") this.notifyPersonalizationInput();
     return message;
   }
   clearChat(conceptId: string) {

@@ -13,7 +13,7 @@ beforeEach(() => {
   now = Date.UTC(2026, 9, 18, 3);
   repo = new LearningRepository(db, () => `t-${++id}`, () => now);
 });
-const owner = () => ({ learnerId: repo.activeLearner, subjectId: "info-basic", scope: repo.learningScope });
+const owner = () => ({ learnerId: repo.activeLearner, subjectId: "info-basic", scope: repo.learningScope, generation: repo.personal.generation(repo.activeLearner) });
 const wrongGap = (eventId: string, questionId: string, at = now) => {
   const q = repo.quiz(questionId);
   const wrong = q.options.find((o) => o.id !== q.correctOptionId)!.id;

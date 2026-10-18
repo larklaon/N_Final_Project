@@ -12,16 +12,18 @@ beforeEach(() => {
   id = 0;
   now = Date.UTC(2026, 9, 18, 3);
   repo = new LearningRepository(db, () => `t-${++id}`, () => now);
+  db.runSync("INSERT INTO confusion_memories(id,learnerId,subjectId,conceptId,skillKey,summary,status,createdAt,lastEvidenceAt) VALUES (?,?,'info-basic','ds-queue','stack-queue-order','순서 혼동','active',?,?)", "storage-memory", repo.activeLearner, now, now);
 });
 const owner = () => ({
   learnerId: repo.activeLearner,
   subjectId: "info-basic",
   scope: repo.learningScope,
+  generation: repo.personal.generation(repo.activeLearner),
 });
 const gapCandidate = (prompt: string): ApprovedCandidate => ({
   kind: "gap",
   conceptId: "ds-queue",
-  memoryId: null as unknown as string,
+  memoryId: "storage-memory",
   skillKey: "stack-queue-order",
   factIds: ["f-queue-fifo"],
   prompt,

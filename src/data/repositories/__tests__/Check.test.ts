@@ -18,7 +18,7 @@ beforeEach(() => {
   repo = new LearningRepository(db, () => `t-${++id}`, () => now);
   repo.updateSettings({ dailyGoal: 5, personalizationEnabled: true, personalizationConsentAt: now, personalizationConsentVersion: "v4-1" });
 });
-const owner = () => ({ learnerId: repo.activeLearner, subjectId: "info-basic", scope: repo.learningScope });
+const owner = () => ({ learnerId: repo.activeLearner, subjectId: "info-basic", scope: repo.learningScope, generation: repo.personal.generation(repo.activeLearner) });
 const count = (sql: string, ...args: string[]) => db.getFirstSync<{ n: number }>(sql, ...args)!.n;
 
 /** Active memory → approved AI card → a real answer to it at `now`. */

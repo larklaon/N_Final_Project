@@ -112,6 +112,7 @@ test.each(["reset", "subject round trip", "profile round trip", "erase"])(
 );
 
 test("a reset before the native start promise resolves cancels only the late owned ID", async () => {
+  jest.useFakeTimers();
   const repo = setup();
   const g = deferredGateway();
   let started!: (r: { requestId: string }) => void;
@@ -125,6 +126,8 @@ test("a reset before the native start promise resolves cancels only the late own
   await Promise.resolve();
   expect(g.cancelResponse).toHaveBeenCalledWith("late-owned-id");
   expect(repo.plan()).toBeNull();
+  await jest.runOnlyPendingTimersAsync(); // The simulated gateway deliberately sends no cancellation event.
+  jest.useRealTimers();
 });
 
 test("ordinary learning changes do not invalidate a pending plan or accept another request's output", async () => {

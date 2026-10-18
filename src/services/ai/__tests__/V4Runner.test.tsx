@@ -1,0 +1,40 @@
+import { act, renderHook } from '@testing-library/react-native';
+import { AppState } from 'react-native';
+import { useApp } from '../../../platform/AppProvider';
+import { usePersonalization } from '../usePersonalization';
+import { runPersonalization } from '../personalization';
+import { LearningRepository } from '../../../data/repositories/LearningRepository';
+import { database } from '../../../data/repositories/__tests__/database';
+
+jest.mock('../../../platform/AppProvider',()=>({useApp:jest.fn()}));
+jest.mock('../personalization',()=>({runPersonalization:jest.fn()}));
+jest.mock('../useProfileModels',()=>{
+ const models=[{slug:'m',displayName:'M'}];return{useProfileModels:()=>({models})};
+});
+
+test('R5: a completed conversation must schedule a new preparation after the first idle pass',async()=>{
+ jest.useFakeTimers();
+ const state=AppState.currentState;
+ Object.defineProperty(AppState,'currentState',{value:'active',writable:true,configurable:true});
+ let id=0;const now=Date.UTC(2026,9,18,3);
+ const repo=new LearningRepository(database(),()=>`runner-${++id}`,()=>now);
+ repo.updateSettings({onboarded:true,aiConsentAt:1,personalizationEnabled:true,personalizationConsentAt:1,personalizationConsentVersion:'v4-1'});
+ const context={repo,snapshot:repo.snapshot(),auth:{status:'ready',profileId:'p'},refresh:jest.fn(),refreshAuth:jest.fn()} as unknown as ReturnType<typeof useApp>;
+ jest.mocked(useApp).mockImplementation(()=>context);
+ jest.mocked(runPersonalization).mockResolvedValue({status:'skipped',reason:'nothing_new',memoriesChanged:0,approvedGap:0,approvedCheck:0});
+ const hook=renderHook(()=>usePersonalization());
+ await act(async()=>{await jest.advanceTimersByTimeAsync(30000)});
+ expect(runPersonalization).toHaveBeenCalledTimes(1);
+ const before=repo.snapshot().memoryRevision;
+ act(()=>{
+ repo.addChatMessage(repo.activeLearner,'ds-queue','user','큐는 스택처럼 나중에 넣은 것이 먼저 나오나요?');
+ repo.addChatMessage(repo.activeLearner,'ds-queue','assistant','큐는 먼저 넣은 것이 먼저 나와요.');
+ });
+ expect(repo.extractionInput().evidence).toHaveLength(1);
+ expect(repo.snapshot().memoryRevision).toBe(before);
+ context.snapshot=repo.snapshot();hook.rerender({});
+ await act(async()=>{await jest.advanceTimersByTimeAsync(60000)});
+ const count=jest.mocked(runPersonalization).mock.calls.length;
+ hook.unmount();Object.defineProperty(AppState,'currentState',{value:state,writable:true,configurable:true});jest.useRealTimers();
+ expect(count).toBe(2);
+});

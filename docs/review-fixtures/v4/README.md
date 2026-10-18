@@ -1,6 +1,8 @@
 # V4 최종 검수 재현
 
-대상 `f3a0a82`, 결과와 수정 기준은 [V4_FINAL_REVIEW](../../V4_FINAL_REVIEW.md)를 따른다.
+원본 대상 `f3a0a82`, 결과와 수정 기준은 [V4_FINAL_REVIEW](../../V4_FINAL_REVIEW.md)를 따른다.
+
+후속 V4.FIX에서는 이 재현을 `src/data/repositories/__tests__/V4Fixes.test.ts`와 `src/services/ai/__tests__/V4Runner.test.tsx`로 옮겨 회귀 검사로 수정했다. 현재 코드는 Owner에 generation을 추가했고 해설도 기준 사실로 구성하므로, 아래 원본 fixture는 당시 소스에서 재현할 때 사용한다. 현재 회귀 검사는 `npm test`로 실행한다.
 
 - `V4Review.test.ts.fixture`: 실제 SQLite repository를 이용한 삭제/재개, 조정기, 해설 검토 4개.
 - `V4RunnerReview.test.tsx.fixture`: 완료 대화의 새 준비 예약을 검사하는 hook 1개.

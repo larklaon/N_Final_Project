@@ -16,7 +16,7 @@ beforeEach(() => {
   repo = new LearningRepository(db, () => `t-${++id}`, () => now);
   repo.updateSettings({ personalizationEnabled: true, personalizationConsentAt: now, personalizationConsentVersion: "v4-1" });
 });
-const owner = () => ({ learnerId: repo.activeLearner, subjectId: "info-basic", scope: repo.learningScope });
+const owner = () => ({ learnerId: repo.activeLearner, subjectId: "info-basic", scope: repo.learningScope, generation: repo.personal.generation(repo.activeLearner) });
 const wrongGap = (eventId: string, questionId: string) => {
   const q = repo.quiz(questionId);
   const wrong = q.options.find((o) => o.id !== q.correctOptionId)!.id;

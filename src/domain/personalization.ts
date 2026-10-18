@@ -75,7 +75,7 @@ export const RULES = TESTING
     };
 
 export const CONSENT_VERSION = "v4-1";
-export const PROMPT_VERSION = "v4-1";
+export const PROMPT_VERSION = "v4-2";
 
 export type MemoryStatus = "candidate" | "active" | "improving" | "resolved" | "archived";
 export type EvidenceType = "wrong-answer" | "learner-statement";
@@ -411,6 +411,19 @@ export function parseContentCandidates(text: string, targets: GenerationTarget[]
   return out;
 }
 
+/** Display only approved facts, with their conditions; never the generator's free-form explanation. */
+export function basisExplanation(factIds: string[], maxChars: number): string | null {
+  const parts: string[] = [];
+  for (const id of [...new Set(factIds)]) {
+    const fact = factById(id);
+    if (!fact || fact.status !== "approved") return null;
+    const part = `${fact.text}${fact.condition ? ` (${fact.condition})` : ""}`;
+    // Keep each fact and its qualification whole, including negations and scope.
+    if ([...parts, part].join(" ").length <= maxChars) parts.push(part);
+  }
+  return parts.length ? parts.join(" ") : null;
+}
+
 /** The reviewer sees the question and the facts, never the generator's answer. */
 export function reviewInput(drafts: Draft[]) {
   return {
@@ -441,13 +454,15 @@ export function approvedByReview(text: string, drafts: Draft[]): { draft: Draft;
   for (const r of raw.reviews as Record<string, unknown>[]) {
     if (!r || typeof r.index !== "number" || !Number.isInteger(r.index)) continue;
     const draft = drafts[r.index];
-    if (!draft || out.some((o) => o.draft === draft)) continue;
+    if (!draft || out.some((o) => o.review.index === r.index)) continue;
     const answer = typeof r.answer === "string" ? r.answer.trim().toLowerCase() : "";
     const expected = draft.kind === "gap" ? draft.answer : draft.correctOptionId.toLowerCase();
     const cited = Array.isArray(r.factIds) ? r.factIds.filter((f): f is string => typeof f === "string") : [];
     if (r.verdict !== "supported" || answer !== expected) continue;
     if (!cited.some((f) => draft.factIds.includes(f))) continue;
-    out.push({ draft, review: { index: r.index, answer, factIds: cited, verdict: "supported" } });
+    const explanation = basisExplanation(draft.factIds, draft.kind === "gap" ? 120 : 300);
+    if (!explanation) continue;
+    out.push({ draft: { ...draft, explanation }, review: { index: r.index, answer, factIds: cited, verdict: "supported" } });
   }
   return out;
 }

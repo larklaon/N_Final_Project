@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Capture question-screen layout on teum-api36; preserves learning DB and restores display settings.
-Requires the app and AndroidTest APKs, Metro8081, and an onboarded synthetic learner.
+Requires the app and AndroidTest APKs, Metro8081, and an onboarded learner (opens practice if today is complete; never submits an answer).
 """
 from pathlib import Path
 import os

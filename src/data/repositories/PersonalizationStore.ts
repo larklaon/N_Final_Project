@@ -15,6 +15,7 @@ import {
   type MemoryCandidate,
   type MemoryStatus,
   type MemoryView,
+  basisExplanation,
 } from "../../domain/personalization";
 import type { Quiz, QuizOrigin } from "../../domain/types";
 import type { Db } from "./LearningRepository";
@@ -62,7 +63,7 @@ export type ApprovedCandidate = {
 };
 
 /** Who may write: the owner and scope captured before the AI call started. */
-export type Owner = { learnerId: string; subjectId: string; scope: string };
+export type Owner = { learnerId: string; subjectId: string; scope: string; generation: number };
 
 const timezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown";
 const quotaOf: Record<"gap" | "check", { field: BudgetField; limit: number }> = {
@@ -81,6 +82,43 @@ export class PersonalizationStore {
     private clock: () => number,
     private isCurrent: (owner: Owner) => boolean,
   ) {}
+
+  private invalidationListeners = new Set<() => void>();
+  generation(learnerId: string): number {
+    return Number(this.db.getFirstSync<{ value: string }>(
+      "SELECT value FROM app_meta WHERE key=?", `personalGeneration:${learnerId}`,
+    )?.value ?? 0);
+  }
+  onInvalidated(listener: () => void) {
+    this.invalidationListeners.add(listener);
+    return () => { this.invalidationListeners.delete(listener); };
+  }
+  private invalidateIn(learnerId: string) {
+    this.db.runSync(
+      "INSERT INTO app_meta(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+      `personalGeneration:${learnerId}`, String(this.generation(learnerId) + 1),
+    );
+  }
+  /** Dismiss observations already present, including ones an in-flight extractor has not linked yet. */
+  private dismissEvidenceIn(learnerId: string, conceptId: string, skillKey: string) {
+    const related = basis.concepts.filter((c) => c.skills.some((s) => s.skillKey === skillKey)).map((c) => c.conceptId);
+    if (!related.includes(conceptId)) related.push(conceptId);
+    const marks = related.map(() => "?").join(",");
+    for (const [kind, table] of [["attempt", "attempts"], ["gap", "gap_events"], ["chat", "chat_messages"]]) {
+      this.db.runSync(
+        `INSERT INTO evidence_checkpoints(learnerId,sourceKind,sourceId,processedAt,ignored)
+         SELECT learnerId,?,id,?,1 FROM ${table} WHERE learnerId=? AND conceptId IN (${marks})
+         ON CONFLICT(learnerId,sourceKind,sourceId) DO UPDATE SET ignored=1`,
+        kind, this.clock(), learnerId, ...related,
+      );
+    }
+  }
+  private notifyInvalidated() {
+    for (const listener of this.invalidationListeners) listener();
+  }
+  isOwnerCurrent(owner: Owner) {
+    return this.isCurrent(owner) && owner.generation === this.generation(owner.learnerId);
+  }
 
   budget(learnerId: string, date = localDate(this.clock())): Budget {
     const row = this.db.getFirstSync<Budget>(
@@ -131,10 +169,15 @@ export class PersonalizationStore {
    * or the same content was already approved for this learner and subject.
    */
   saveApproved(owner: Owner, c: ApprovedCandidate): GeneratedRow | null {
-    if (!this.isCurrent(owner)) return null;
+    if (!this.isOwnerCurrent(owner)) return null;
     const now = this.clock();
     const facts = approvedFacts(c.conceptId).filter((f) => c.factIds.includes(f.factId));
     if (facts.length !== c.factIds.length || facts.length === 0) return null;
+    const explanation = basisExplanation(c.factIds, c.kind === "gap" ? 120 : 300);
+    if (!explanation) return null;
+    const memory = this.memory(owner.learnerId, c.memoryId);
+    if (!memory || memory.conceptId !== c.conceptId || memory.skillKey !== c.skillKey ||
+        memory.subjectId !== owner.subjectId || !["active", "improving"].includes(memory.status)) return null;
     const optionTexts = (c.options ?? []).map((o) => o.text);
     const hashKey = contentHash([c.kind, c.conceptId, c.prompt, ...optionTexts]);
     const id = this.uuid();
@@ -162,7 +205,7 @@ export class PersonalizationStore {
               { id: "x", text: "아니에요 (X)" },
             ],
             correctOptionId: c.correctOptionId,
-            explanation: c.explanation,
+            explanation,
             sourceRefs: facts.map((f) => ({ title: f.source.title, url: f.source.url, checkedAt: f.checkedAt })),
             contentVersion: 1,
             origin,
@@ -177,7 +220,7 @@ export class PersonalizationStore {
             builtOn: [c.conceptId],
             options: c.options ?? [],
             correctOptionId: c.correctOptionId,
-            explanation: c.explanation,
+            explanation,
             sourceRefs: facts.map((f) => ({ title: f.source.title, url: f.source.url, checkedAt: f.checkedAt })),
             contentVersion: 1,
             origin,
@@ -424,7 +467,7 @@ export class PersonalizationStore {
    * Returns the ids of memories that changed.
    */
   applyCandidates(owner: Owner, input: ExtractionInput, candidates: MemoryCandidate[]): string[] | null {
-    if (!this.isCurrent(owner)) return null;
+    if (!this.isOwnerCurrent(owner)) return null;
     const now = this.clock();
     const byRef = new Map(input.evidence.map((e) => [e.ref, e]));
     const changed: string[] = [];
@@ -525,15 +568,19 @@ export class PersonalizationStore {
   deleteMemory(learnerId: string, memoryId: string) {
     let ok = false;
     this.db.withTransactionSync(() => {
-      if (!this.db.getFirstSync("SELECT 1 FROM confusion_memories WHERE id=? AND learnerId=?", memoryId, learnerId)) return;
+      const m = this.memory(learnerId, memoryId);
+      if (!m) return;
+      this.dismissEvidenceIn(learnerId, m.conceptId, m.skillKey);
       this.db.runSync(
         "UPDATE generated_questions SET status='hidden' WHERE memoryId=? AND learnerId=? AND status='approved'",
         memoryId,
         learnerId,
       );
       this.db.runSync("DELETE FROM confusion_memories WHERE id=?", memoryId);
+      this.invalidateIn(learnerId);
       ok = true;
     });
+    if (ok) this.notifyInvalidated();
     return ok;
   }
   ignoreMemory(learnerId: string, memoryId: string) {
@@ -545,6 +592,8 @@ export class PersonalizationStore {
         learnerId,
       );
       if (!m) return;
+      const memory = this.memory(learnerId, memoryId)!;
+      this.dismissEvidenceIn(learnerId, memory.conceptId, memory.skillKey);
       for (const e of this.evidenceOf(memoryId))
         this.db.runSync(
           "INSERT INTO evidence_checkpoints VALUES (?,?,?,?,1) ON CONFLICT(learnerId,sourceKind,sourceId) DO UPDATE SET ignored=1",
@@ -553,14 +602,17 @@ export class PersonalizationStore {
           e.sourceId,
           this.clock(),
         );
+      this.db.runSync("UPDATE generated_questions SET status='hidden' WHERE learnerId=? AND memoryId=? AND status='approved'", learnerId, memoryId);
       this.db.runSync("DELETE FROM confusion_evidence WHERE memoryId=?", memoryId);
       this.db.runSync(
         "UPDATE confusion_memories SET status='archived',data=?,revision=revision+1 WHERE id=?",
         JSON.stringify({ ignoredAt: this.clock() }),
         memoryId,
       );
+      this.invalidateIn(learnerId);
       ok = true;
     });
+    if (ok) this.notifyInvalidated();
     return ok;
   }
   /** Memories without new evidence or checks for 30 days fade to archived (not resolved). */

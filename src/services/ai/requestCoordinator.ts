@@ -12,20 +12,26 @@ const rank: Record<Priority, number> = { chat: 3, plan: 2, background: 1 };
 type Running = { priority: Priority; abort: () => void; idle: Promise<void> };
 let running: Running | null = null;
 let chatHolds = 0;
-let waiters: (() => void)[] = [];
-const wake = () => {
-  const w = waiters;
-  waiters = [];
-  for (const f of w) f();
+type Queued = {
+  priority: "plan" | "background";
+  request: object;
+  signal: AbortSignal;
+  timeoutMs?: number;
+  resolve: (text: string) => void;
+  reject: (error: unknown) => void;
+  removeAbort: () => void;
 };
-const nextChange = () => new Promise<void>((resolve) => waiters.push(resolve));
+const queue: Queued[] = [];
 
 /** Test hook: forget any state left by a previous test. */
 export function resetCoordinator() {
+  for (const item of queue.splice(0)) {
+    item.removeAbort();
+    item.reject(Error("plan_invalidated"));
+  }
   running?.abort();
   running = null;
   chatHolds = 0;
-  wake();
 }
 
 /** How long to wait for the native "cancelled" event before treating the slot as free. */
@@ -61,7 +67,7 @@ export function complete(
     };
     const cancel = (id: string) => {
       void gateway.cancelResponse(id).catch(() => {});
-      fallback ??= setTimeout(finishIdle, IDLE_FALLBACK_MS);
+      if (!done) fallback ??= setTimeout(finishIdle, IDLE_FALLBACK_MS);
     };
     const finish = (fn: () => void) => {
       if (settled) return;
@@ -73,6 +79,7 @@ export function complete(
     const abort = () => {
       finish(() => reject(Error("plan_invalidated")));
       if (requestId) cancel(requestId);
+      else fallback ??= setTimeout(finishIdle, IDLE_FALLBACK_MS);
     };
     const handle = (e: AiEvent) => {
       if (done) return;
@@ -90,6 +97,7 @@ export function complete(
     const timer = setTimeout(() => {
       finish(() => reject(Error("plan_timeout")));
       if (requestId) cancel(requestId);
+      else fallback ??= setTimeout(finishIdle, IDLE_FALLBACK_MS);
     }, timeoutMs);
     signal.addEventListener("abort", abort);
     if (signal.aborted) {
@@ -117,73 +125,75 @@ export function complete(
   return { result, idle };
 }
 
-async function acquire(priority: Priority, signal: AbortSignal) {
-  for (;;) {
-    if (signal.aborted) throw Error("plan_invalidated");
-    if (priority !== "chat" && chatHolds > 0) {
-      await nextChange();
-      continue;
-    }
-    if (running) {
-      if (rank[priority] > rank[running.priority]) {
-        const r = running;
-        r.abort();
-        await r.idle;
-        if (running === r) running = null;
-        continue;
-      }
-      await nextChange();
-      continue;
-    }
+/** Select and occupy the slot in the same synchronous turn; never wake every waiter. */
+function drain() {
+  if (chatHolds > 0 || queue.length === 0) return;
+  if (running) {
+    if (queue.some((q) => rank[q.priority] > rank[running!.priority])) running.abort();
     return;
   }
-}
-
-const free = (priority: Priority) => !running && (priority === "chat" || chatHolds === 0);
-
-function start(priority: "plan" | "background", request: object, signal: AbortSignal, timeoutMs?: number) {
+  let best = 0;
+  for (let i = 1; i < queue.length; i++)
+    if (rank[queue[i].priority] > rank[queue[best].priority]) best = i;
+  const [item] = queue.splice(best, 1);
+  item.removeAbort();
+  if (item.signal.aborted) {
+    item.reject(Error("plan_invalidated"));
+    drain();
+    return;
+  }
   const controller = new AbortController();
   const abort = () => controller.abort();
-  signal.addEventListener("abort", abort);
-  if (signal.aborted) controller.abort();
-  const { result, idle } = complete(request, controller.signal, timeoutMs);
-  const entry: Running = { priority, abort, idle };
+  item.signal.addEventListener("abort", abort);
+  if (item.signal.aborted) controller.abort();
+  const { result, idle } = complete(item.request, controller.signal, item.timeoutMs);
+  const entry: Running = { priority: item.priority, abort, idle };
   running = entry;
   void idle.then(() => {
     if (running === entry) running = null;
-    wake();
+    drain();
   });
-  return result.finally(() => signal.removeEventListener("abort", abort));
+  void result.then(item.resolve, item.reject).finally(() => item.signal.removeEventListener("abort", abort));
 }
 
-/** Plan or background request through the shared slot; starts at once when the slot is free. */
+/** A cancellable, priority-ordered queue for plan and personalization requests. */
 export function runRequest(
   priority: "plan" | "background",
   request: object,
   signal: AbortSignal,
   timeoutMs?: number,
 ): Promise<string> {
-  if (free(priority)) return start(priority, request, signal, timeoutMs);
-  return acquire(priority, signal).then(() => start(priority, request, signal, timeoutMs));
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(Error("plan_invalidated"));
+    const abort = () => {
+      const index = queue.indexOf(item);
+      if (index < 0) return;
+      queue.splice(index, 1);
+      item.removeAbort();
+      reject(Error("plan_invalidated"));
+    };
+    const item: Queued = { priority, request, signal, timeoutMs, resolve, reject,
+      removeAbort: () => signal.removeEventListener("abort", abort) };
+    signal.addEventListener("abort", abort);
+    queue.push(item);
+    drain();
+  });
 }
 
-/**
- * The learner sent a chat message: cancel lower-priority work, wait until the native side
- * is idle, and keep background work out until the returned release is called.
- */
+/** The learner's chat preempts lower-priority work; its release resumes the queue. */
 export async function beginChat(): Promise<() => void> {
   chatHolds++;
-  while (running && running.priority !== "chat") {
-    const r = running;
-    r.abort();
-    await r.idle;
-    if (running === r) running = null;
+  while (running) {
+    const entry = running;
+    entry.abort();
+    await entry.idle;
+    if (running === entry) running = null;
   }
   let released = false;
   return () => {
     if (released) return;
     released = true;
     chatHolds = Math.max(0, chatHolds - 1);
-    wake();
+    drain();
   };
 }

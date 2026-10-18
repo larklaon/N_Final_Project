@@ -4,7 +4,6 @@ import android.content.Intent
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
@@ -14,7 +13,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Question screen fits at the configured font, density and orientation. Never changes learning data. */
+/** Question screen fits at the configured font, density and orientation. Never submits an answer or resets learning data. */
 @RunWith(AndroidJUnit4::class)
 class LayoutTest {
  @Test fun labelsFitAtConfiguredFontAndOrientation() {
@@ -24,6 +23,10 @@ class LayoutTest {
    c.startActivity(Intent(Intent.ACTION_VIEW,uri).setPackage(c.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
    d.wait(Until.hasObject(By.text("Continue")),1500);d.findObject(By.text("Continue"))?.click()
    check(d.wait(Until.hasObject(By.descStartsWith("퍼즐 보기")),30000)) { "Question screen did not open (needs an onboarded learner)" }
+   // A preserved account may have already finished today. Exercise a practice question
+   // without submitting an answer or changing the daily goal/learning history.
+   d.findObject(By.text("조금 더 풀기"))?.click()
+   check(d.wait(Until.hasObject(By.descContains("번, ")),10000)) { "No answerable practice question available" }
    val name=InstrumentationRegistry.getArguments().getString("captureName","question").replace(Regex("[^a-zA-Z0-9_-]"),"")
    val requestLandscape=name.startsWith("rotation-lock")
    try {
@@ -48,15 +51,15 @@ class LayoutTest {
      val scroll=d.wait(Until.findObject(By.clazz("android.widget.ScrollView").scrollable(true)),5000)
      println("Layout probe step=$step reached=$reached scroll=${scroll?.className} bounds=${scroll?.visibleBounds}")
      if(scroll==null) break
-     scroll.setGestureMargin((24*density).toInt())
-     // Explicit slow swipes prevent fling inertia from skipping choices between samples.
-     val more=scroll.scroll(Direction.DOWN,0.35f,(90*density).toInt())
-     println("Layout probe scrollMore=$more bounds=${scroll.visibleBounds}")
-     if(!more) {
-       for(o in d.findObjects(By.descContains("번, ")))
-         if(o.visibleBounds.height()>=maxOf(minimum,minimumTouch)) reached.add(o.contentDescription)
-       break
-     }
+     // Center gestures can land on a nested horizontal code scroller. Use the vertical
+     // container's side gutter, and observe real bounds instead of trusting scroll()'s
+     // accessibility return value during asynchronous footer/layout changes.
+     val bounds=scroll.visibleBounds
+     val x=bounds.left+(20*density).toInt()
+     val bottom=bounds.bottom-(24*density).toInt()
+     val top=maxOf(bounds.top+(24*density).toInt(),bottom-(bounds.height()*0.45f).toInt())
+     assertTrue("Invalid scroll viewport: $bounds",top<bottom && x<bounds.right)
+     d.swipe(x,bottom,x,top,160)
      d.waitForIdle(500)
    }
    assertEquals("Every answer option must be reachable by scrolling",4,reached.size)
