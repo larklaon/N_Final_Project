@@ -28,6 +28,16 @@ class GapStateTest {
     assertEquals(GapView.Hidden, state(enabled = false).view(true, 9 * 60))
   }
 
+  @Test fun quietTimeCanCrossMidnightOrSitInsideTheDay() {
+    // Quiet 01:23–06:47: cards from 06:47 to 01:23 the next day.
+    val s = GapState().apply { configure(config(3).put("start", "06:47").put("end", "01:23"), now) }
+    assertTrue(s.view(true, 23 * 60 + 30) is GapView.Question)
+    assertTrue(s.view(true, 1 * 60 + 22) is GapView.Question)
+    assertEquals(GapView.Hidden, s.view(true, 1 * 60 + 23))
+    assertEquals(GapView.Hidden, s.view(true, 6 * 60 + 46))
+    assertTrue(s.view(true, 6 * 60 + 47) is GapView.Question)
+  }
+
   @Test fun answeringRecordsOneEventAndShowsResult() {
     val s = state()
     assertEquals(GapAnswer("x", false), s.answer("c0", "x", now, newId))

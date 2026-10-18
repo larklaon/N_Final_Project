@@ -202,8 +202,11 @@ function withGenerated(cards: GapCard[], s: LearningSnapshot, extras: DeckExtras
   return out;
 }
 
-/** HH:MM inside [start, end). Used to validate settings and mirror native gating. */
+/**
+ * HH:MM inside the card window [start, end), which may cross midnight. The settings screen
+ * shows its complement as "방해 금지 시간" [end, start). Mirrors native gating.
+ */
 export function withinWindow(time: Date, start: string, end: string) {
   const hm = `${String(time.getHours()).padStart(2, "0")}:${String(time.getMinutes()).padStart(2, "0")}`;
-  return hm >= start && hm < end;
+  return start < end ? hm >= start && hm < end : hm >= start || hm < end;
 }

@@ -136,4 +136,10 @@ test("card window is half-open", () => {
   expect(withinWindow(at(21, 59), "07:00", "22:00")).toBe(true);
   expect(withinWindow(at(22, 0), "07:00", "22:00")).toBe(false);
   expect(withinWindow(at(6, 59), "07:00", "22:00")).toBe(false);
+  // Quiet 01:23–06:47 → cards from 06:47 to 01:23 the next day.
+  expect(withinWindow(at(23, 30), "06:47", "01:23")).toBe(true);
+  expect(withinWindow(at(1, 22), "06:47", "01:23")).toBe(true);
+  expect(withinWindow(at(1, 23), "06:47", "01:23")).toBe(false);
+  expect(withinWindow(at(6, 46), "06:47", "01:23")).toBe(false);
+  expect(withinWindow(at(6, 47), "06:47", "01:23")).toBe(true);
 });

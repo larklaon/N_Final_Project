@@ -57,7 +57,7 @@ function CardPreview({ card, hours }: { card: GapPreview; hours: string }) {
             ))}
         </View>
       </View>
-      {!card.onLockScreen && <Text style={p.caption}>숨겨져 있어요 · {hours}</Text>}
+      {!card.onLockScreen && <Text style={p.caption}>방해 금지 중 · {hours}</Text>}
     </View>
   );
 }
@@ -95,14 +95,13 @@ const labels = {
   temporarilyUnavailable: "잠시 연결할 수 없어요",
 };
 const hours = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, "0"));
-const minutes = ["00", "10", "20", "30", "40", "50"];
-/** Snap a stored time (e.g. an older 23:59) onto the wheel's 10-minute grid. */
-const onGrid = (t: string) => {
-  const [h, m] = t.split(":");
-  return [h, String(Math.min(50, Math.floor(Number(m) / 10) * 10)).padStart(2, "0")] as const;
-};
+const minutes = Array.from({ length: 60 }, (_, m) => String(m).padStart(2, "0"));
+const split = (t: string) => t.split(":") as [string, string];
 
-/** Pick the card hours freely with four wheels: start hour·minute, end hour·minute. */
+/**
+ * 방해 금지 시간: cards stay off the lock screen only between these two times, which may
+ * cross midnight. Four wheels to the minute: start hour·minute, end hour·minute.
+ */
 function WindowSheet({
   start,
   end,
@@ -114,17 +113,17 @@ function WindowSheet({
   onClose: () => void;
   onSave: (start: string, end: string) => void;
 }) {
-  const [[sh, sm], setStart] = useState(() => onGrid(start));
-  const [[eh, em], setEnd] = useState(() => onGrid(end));
+  const [[sh, sm], setStart] = useState(() => split(start));
+  const [[eh, em], setEnd] = useState(() => split(end));
   const from = `${sh}:${sm}`;
   const to = `${eh}:${em}`;
-  const ok = from < to;
+  const ok = from !== to;
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={w.scrim} accessibilityLabel="닫기" onPress={onClose} />
       <View style={w.sheet}>
         <View style={w.grabber} />
-        <Text style={w.title}>카드를 보여 줄 시간</Text>
+        <Text style={w.title}>방해 금지 시간</Text>
         <View style={w.row}>
           {[
             { label: "시작", h: sh, m: sm, set: (h: string, m: string) => setStart([h, m]) },
@@ -143,7 +142,7 @@ function WindowSheet({
             </View>
           ))}
         </View>
-        <Text style={[w.hint, ok && { opacity: 0 }]}>끝이 시작보다 늦어야 해요</Text>
+        <Text style={[w.hint, ok && { opacity: 0 }]}>시작과 끝이 같아요</Text>
         <Button label="저장" disabled={!ok} onPress={() => onSave(from, to)} />
       </View>
     </Modal>
@@ -325,7 +324,7 @@ export default function Settings() {
           }
         />
         {settings.gapEnabled && permission !== false && preview && (
-          <CardPreview card={preview} hours={`${settings.gapStart}–${settings.gapEnd}`} />
+          <CardPreview card={preview} hours={`${settings.gapEnd}–${settings.gapStart}`} />
         )}
         {settings.gapEnabled && permission === false && (
           <Row
@@ -350,8 +349,8 @@ export default function Settings() {
           }
         />
         <Row
-          label="카드를 보여 줄 시간"
-          value={`${settings.gapStart} – ${settings.gapEnd}`}
+          label="방해 금지 시간"
+          value={`${settings.gapEnd} – ${settings.gapStart}`}
           onPress={() => setWindowOpen(true)}
           last={!canPin}
         />
@@ -527,12 +526,13 @@ export default function Settings() {
       {!!error && <Message text={error} error />}
       {windowOpen && (
         <WindowSheet
-          start={settings.gapStart}
-          end={settings.gapEnd}
+          // Stored as the card window; the quiet time is its complement.
+          start={settings.gapEnd}
+          end={settings.gapStart}
           onClose={() => setWindowOpen(false)}
-          onSave={(gapStart, gapEnd) => {
+          onSave={(quietStart, quietEnd) => {
             setWindowOpen(false);
-            void run(() => repo.updateSettings({ gapStart, gapEnd }));
+            void run(() => repo.updateSettings({ gapStart: quietEnd, gapEnd: quietStart }));
           }}
         />
       )}

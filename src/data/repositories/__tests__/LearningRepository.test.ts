@@ -256,12 +256,15 @@ test("pre-V2 settings are normalized and v2 data migrates to v3", () => {
   expect(reopened.snapshot().gapProgress).toEqual({});
 });
 
-test("settings reject unsupported goals, intervals and inverted card hours", () => {
+test("settings reject unsupported goals, intervals and an empty card window", () => {
   expect(() => repo.updateSettings({ dailyGoal: 4 })).toThrow();
   expect(() => repo.updateSettings({ gapIntervalMinutes: 5 })).toThrow();
-  expect(() =>
-    repo.updateSettings({ gapStart: "22:00", gapEnd: "07:00" }),
-  ).toThrow();
+  expect(() => repo.updateSettings({ gapStart: "07:00", gapEnd: "07:00" })).toThrow();
+  expect(() => repo.updateSettings({ gapStart: "7:5", gapEnd: "22:00" })).toThrow();
+  // A quiet time inside the day (01:23–06:47) leaves a card window across midnight.
+  repo.updateSettings({ gapStart: "06:47", gapEnd: "01:23" });
+  expect(repo.snapshot().settings).toMatchObject({ gapStart: "06:47", gapEnd: "01:23" });
+  repo.updateSettings({ gapStart: "07:00", gapEnd: "22:00" });
   repo.updateSettings({ dailyGoal: 10, gapIntervalMinutes: 60 });
   expect(repo.snapshot().settings).toMatchObject({
     dailyGoal: 10,

@@ -239,9 +239,9 @@ export class LearningRepository {
     if (
       !time.test(settings.gapStart) ||
       !time.test(settings.gapEnd) ||
-      settings.gapStart >= settings.gapEnd
+      settings.gapStart === settings.gapEnd
     )
-      throw Error("카드를 보여 줄 시간은 시작이 끝보다 앞서야 해요.");
+      throw Error("방해 금지 시간의 시작과 끝이 같을 수 없어요.");
     this.db.withTransactionSync(() => {
       this.db.runSync(
         "UPDATE learner_settings SET data=? WHERE learnerId=?",

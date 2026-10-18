@@ -67,7 +67,8 @@ class GapState(val root: JSONObject = JSONObject()) {
       ?.let { (h, m) -> h.toInt() * 60 + m.toInt() } ?: fallback
     val start = parse(root.optString("start"), 7 * 60)
     val end = parse(root.optString("end"), 22 * 60)
-    return minuteOfDay in start until end
+    // The card window may cross midnight; its complement is the quiet time set in the app.
+    return if (start < end) minuteOfDay in start until end else minuteOfDay >= start || minuteOfDay < end
   }
 
   fun current(): GapCard? = deck.getOrNull(index)
