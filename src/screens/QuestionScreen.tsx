@@ -197,6 +197,13 @@ function ScopedQuestionScreen() {
       update({ pinned: { ...session, answer }, error: "" });
       refresh();
     } catch {
+      if (session.checkMemoryId) {
+        // The check stopped being valid while it was open (deleted, hidden, turned off):
+        // move on to a normal question instead of failing on every tap.
+        update({ selected: "", error: "확인 문제가 바뀌어 다음 문제로 이어가요." });
+        refresh();
+        return;
+      }
       update({ error: "기록하지 못했어요. 고른 답은 그대로예요. 다시 시도해 주세요." });
     }
   }

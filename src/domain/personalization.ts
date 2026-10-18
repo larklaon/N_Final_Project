@@ -84,7 +84,10 @@ export type SourceKind = "attempt" | "gap" | "chat";
 export type BasisFact = {
   factId: string;
   text: string;
+  /** Scope for the generator and reviewer (e.g. "PostgreSQL 문서 기준"); never shown to learners. */
   condition: string;
+  /** Learner-facing exception the answer depends on, shown after the fact in explanations. */
+  note?: string;
   source: { title: string; url: string };
   checkedAt: string;
   status: "approved" | "excluded";
@@ -411,14 +414,17 @@ export function parseContentCandidates(text: string, targets: GenerationTarget[]
   return out;
 }
 
-/** Display only approved facts, with their conditions; never the generator's free-form explanation. */
+/**
+ * Display only approved facts with the learner-facing exception they depend on; never the
+ * generator's free-form explanation, and never the reviewer-facing scope notes.
+ */
 export function basisExplanation(factIds: string[], maxChars: number): string | null {
   const parts: string[] = [];
   for (const id of [...new Set(factIds)]) {
     const fact = factById(id);
     if (!fact || fact.status !== "approved") return null;
-    const part = `${fact.text}${fact.condition ? ` (${fact.condition})` : ""}`;
-    // Keep each fact and its qualification whole, including negations and scope.
+    const part = `${fact.text}${fact.note ? ` (${fact.note})` : ""}`;
+    // Keep each fact and its exception whole; never cut a sentence to fit.
     if ([...parts, part].join(" ").length <= maxChars) parts.push(part);
   }
   return parts.length ? parts.join(" ") : null;

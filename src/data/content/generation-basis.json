@@ -37,6 +37,7 @@
           "factId": "f-queue-fifo",
           "text": "큐는 먼저 넣은 항목을 가장 먼저 꺼낸다(선입선출, FIFO).",
           "condition": "일반적인 큐(우선순위 큐 제외)",
+          "note": "우선순위 큐는 예외",
           "source": { "title": "Python Tutorial 5.1.2 Using Lists as Queues", "url": "https://docs.python.org/3/tutorial/datastructures.html#using-lists-as-queues" },
           "checkedAt": "2026-10-18",
           "status": "approved"
@@ -45,6 +46,7 @@
           "factId": "f-queue-ends",
           "text": "큐는 한쪽 끝에 넣고 반대쪽 끝에서 꺼낸다.",
           "condition": "일반적인 큐(우선순위 큐 제외)",
+          "note": "우선순위 큐는 예외",
           "source": { "title": "Python Tutorial 5.1.2 Using Lists as Queues", "url": "https://docs.python.org/3/tutorial/datastructures.html#using-lists-as-queues" },
           "checkedAt": "2026-10-18",
           "status": "approved"
@@ -86,6 +88,7 @@
           "factId": "f-fk-match",
           "text": "외래키 값은 참조하는 다른 테이블의 어떤 행에 있는 값과 일치해야 한다(참조 무결성).",
           "condition": "관계형 데이터베이스(PostgreSQL 문서 기준), 외래키 열이 NULL이 아닐 때",
+          "note": "외래키 값이 NULL이 아닐 때",
           "source": { "title": "PostgreSQL 5.5.5 Foreign Keys", "url": "https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK" },
           "checkedAt": "2026-10-18",
           "status": "approved"
@@ -103,6 +106,7 @@
           "factId": "f-fk-match",
           "text": "외래키 값은 참조하는 다른 테이블의 어떤 행에 있는 값과 일치해야 한다(참조 무결성).",
           "condition": "관계형 데이터베이스(PostgreSQL 문서 기준), 외래키 열이 NULL이 아닐 때",
+          "note": "외래키 값이 NULL이 아닐 때",
           "source": { "title": "PostgreSQL 5.5.5 Foreign Keys", "url": "https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK" },
           "checkedAt": "2026-10-18",
           "status": "approved"

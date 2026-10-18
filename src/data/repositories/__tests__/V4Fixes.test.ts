@@ -1,6 +1,6 @@
 import { database } from './database';
 import { LearningRepository } from '../LearningRepository';
-import { parseMemoryCandidates, parseContentCandidates, approvedByReview, reviewInput, type GenerationTarget } from '../../../domain/personalization';
+import { basis, basisExplanation, parseMemoryCandidates, parseContentCandidates, approvedByReview, reviewInput, type GenerationTarget } from '../../../domain/personalization';
 import { beginChat, resetCoordinator, runRequest } from '../../../services/ai/requestCoordinator';
 import { getSiwc, type AiEvent } from '../../../../modules/siwc-android';
 
@@ -103,12 +103,21 @@ test.each(['delete','ignore'] as const)('R1: %s cancels old extraction and appro
  expect(repo.personal.applyCandidates(owner(),fresh,c)).toHaveLength(1);
 });
 
-test('R4: storage ignores the generator explanation and retains the full basis condition',()=>{
+test('R4: storage ignores the generator explanation and keeps the learner-facing exception',()=>{
  const {id}=memory();const saved=repo.personal.saveApproved(owner(),{kind:'gap',conceptId:'ds-queue',memoryId:id,skillKey:'stack-queue-order',factIds:['f-queue-fifo'],prompt:'큐는 먼저 넣은 것을 먼저 꺼낸다.',correctOptionId:'o',explanation:'큐는 후입선출이에요.',model:'m',review:{}})!;
  expect(saved.quiz.explanation).toContain('선입선출');
- expect(saved.quiz.explanation).toContain('우선순위 큐 제외');
+ expect(saved.quiz.explanation).toBe('큐는 먼저 넣은 항목을 가장 먼저 꺼낸다(선입선출, FIFO). (우선순위 큐는 예외)');
  expect(saved.quiz.explanation).not.toContain('후입선출');
  expect(repo.quiz(saved.quiz.id).explanation).toBe(saved.quiz.explanation);
+});
+
+test('R4: explanations never show reviewer-facing scope notes, only real exceptions',()=>{
+ expect(basisExplanation(['f-pk-unique-notnull'],120)).toBe('기본키 값은 유일해야 하고 NULL일 수 없다.');
+ expect(basisExplanation(['f-fk-match'],120)).toBe('외래키 값은 참조하는 다른 테이블의 어떤 행에 있는 값과 일치해야 한다(참조 무결성). (외래키 값이 NULL이 아닐 때)');
+ for(const c of basis.concepts)for(const sk of c.skills){
+  const text=basisExplanation(sk.factIds,300)!;
+  expect(text).not.toMatch(/PostgreSQL|문서 기준|일반적인|\(\S*\(/);
+ }
 });
 
 test('R3: highest priority starts alone, queued cancellation is immediate, and the next waits for terminal',async()=>{
