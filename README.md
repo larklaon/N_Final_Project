@@ -1,6 +1,6 @@
 # 틈지식
 
-자격증 공부를 시작하기 전, 기초 개념을 틈틈이 스치고 맞춰 가는 Android 학습 앱입니다. React Native + Expo Development Build로 개발한 로컬 우선 앱이며, 현재 V3까지 구현되어 있습니다.
+자격증 공부를 시작하기 전, 기초 개념을 틈틈이 스치고 맞춰 가는 Android 학습 앱입니다. React Native + Expo Development Build로 개발한 로컬 우선 앱이며, 현재 V3까지 구현되어 있습니다. 휴대폰 앱은 세로 화면으로 고정됩니다.
 
 ## 구현 기능
 

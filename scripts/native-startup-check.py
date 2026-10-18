@@ -88,16 +88,17 @@ try:
                 wait_screen(is_question)
             for rotation in ['1', '0']:
                 adb('shell', 'wm', 'user-rotation', 'lock', rotation)
-                xml = wait_screen(lambda t: is_question(t) and t.get('rotation') == rotation)
+                time.sleep(1)  # Allow the system to process the rotation request.
+                xml = wait_screen(lambda t: is_question(t) and t.get('rotation') == '0')
         time.sleep(2)
         assert adb('shell', 'pidof', package).strip() == pid, 'App process died or restarted'
         crashes = adb('logcat', '-b', 'crash', '-d', '-v', 'threadtime', '-T', start)
         (out / f'{run:02d}-crash.log').write_text(crashes)
         assert package not in crashes, 'App crash recorded; inspect per-run crash log'
         (out / f'{run:02d}.xml').write_text(xml)
-        results.append({'run': run, 'pid': pid, 'questionVisible': True, 'navigationAndRotation': navigation, 'appCrashes': 0})
+        results.append({'run': run, 'pid': pid, 'questionVisible': True, 'navigationAndPortraitLock': navigation, 'appCrashes': 0})
         (out / 'results.json').write_text(json.dumps(results, indent=2)+'\n')
-        print(f'{run}/{args.runs}: React screen ready; same PID; navigation/rotation={navigation}; no app crash', flush=True)
+        print(f'{run}/{args.runs}: React screen ready; same PID; navigation/portrait-lock={navigation}; no app crash', flush=True)
 finally:
     adb('shell', 'am', 'force-stop', package)
     for key, value in original.items():

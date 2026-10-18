@@ -1,5 +1,11 @@
 # 개발 검증 결과
 
+## 세로 고정 (2026-10-18, V3.PORTRAIT)
+
+- app.json portrait → Expo prebuild로 Android MainActivity portrait 생성 확인. debug/AndroidTest 재빌드와 데이터 유지 설치 성공, 타입·린트 통과.
+- API36에서 가로 회전 요청 후에도 세로 유지 검사(6.242초)와 360dp/글씨200% 보기·버튼 도달 검사(8.044초) 통과. 캡처 XML 모두 rotation=0. 표시 설정 원복.
+- 이전 가로 지원 검증은 당시 결과로 보존한다. 현재 제품 정책은 휴대폰 세로 고정이며 기존 네이티브 크래시 수정은 유지한다. 물리 기기·태블릿은 미검증.
+
 ## Android 네이티브 수정 (2026-10-18, V3.NATIVE_FIX)
 
 - screens4.26.2에 공식 #4413 패치를 적용하고 postinstall 버전/해시 검증으로 설치 재현성을 확보했다. SDK57 버전 관계는 유지한다.

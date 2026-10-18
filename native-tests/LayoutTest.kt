@@ -25,11 +25,11 @@ class LayoutTest {
    d.wait(Until.hasObject(By.text("Continue")),1500);d.findObject(By.text("Continue"))?.click()
    check(d.wait(Until.hasObject(By.descStartsWith("퍼즐 보기")),30000)) { "Question screen did not open (needs an onboarded learner)" }
    val name=InstrumentationRegistry.getArguments().getString("captureName","question").replace(Regex("[^a-zA-Z0-9_-]"),"")
-   val landscape=name.startsWith("landscape")
+   val requestLandscape=name.startsWith("rotation-lock")
    try {
-   if(landscape) d.setOrientationLeft() else d.setOrientationNatural()
+   if(requestLandscape) d.setOrientationLeft() else d.setOrientationNatural()
    d.waitForIdle(1500)
-   assertEquals("Wrong capture orientation",landscape,d.displayWidth>d.displayHeight)
+   assertTrue("App must stay portrait even when landscape is requested",d.displayHeight>d.displayWidth)
    val font=c.resources.configuration.fontScale
    val density=c.resources.displayMetrics.density
    val minimum=ceil(17 * minOf(font,1.5f) * density).toInt()

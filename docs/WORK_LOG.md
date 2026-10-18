@@ -1,5 +1,14 @@
 # 개발 기록
 
+## 2026-10-18 — V3.PORTRAIT — 휴대폰 세로 고정
+
+- 사용자 결정에 따라 app.json의 orientation을 portrait로 바꾸고 Expo prebuild로 MainActivity의 screenOrientation=portrait 생성을 확인했다. 기존 screens 크래시 패치는 유지한다.
+- 회전 검사는 가로 레이아웃 지원 대신 가로 방향 요청 후에도 세로가 유지되는 단언으로 변경했다. 시작 검사 스크립트와 README/BUILD에도 현재 정책을 반영했다.
+- 검증: typecheck·lint·Python 문법·diff 검사, debug/AndroidTest APK 빌드 및 데이터 유지 설치 통과. API36 LayoutTest **360dp/글씨200% 8.044초**, **가로 요청 후 세로 고정 6.242초** 통과. 네 선택지 최소 노출 높이/확인 버튼/설정 접근 단언을 유지했고 캡처 XML rotation=0도 확인했다.
+- 계정·학습 DB 초기화나 정답 제출 없음. 검사 후 font1.0/density420/자동회전1/user_rotation0 복원.
+- APK: arm64 개발용·Metro 필요, SHA256 `08979926a9b56728b3688d460109e42a42438b0c0cdfab89cbe5c5a1d84c467e`, 96,497,588 bytes. 기존 artifacts 개발용 APK 사본 갱신, Git에는 올리지 않음.
+- 제한: 휴대폰 API36 에뮬레이터 기준 검증이다. 태블릿·멀티윈도우·물리 기기는 이번 검증 범위에 포함하지 않았다. 로컬 계획·디자인 기준은 로컬에서만 갱신했다.
+
 ## 2026-10-18 — V3.NATIVE_FIX — Android screens listener 수명 수정
 
 - 상태: 공식 네이티브 수정 적용, Android 빌드·제한된 반복 실행 검증 완료.

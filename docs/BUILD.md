@@ -44,4 +44,6 @@ Debug APK는 개발용이며 Metro 연결이 필요하다. 설치 대상 ABI를 
 python3 scripts/native-startup-check.py --runs 20
 ```
 
-`ANDROID_HOME`이 필요하다. 매번 앱을 force-stop 후 deep link로 열고 실제 문제 화면·동일 PID·크래시 로그를 확인한다. 5회마다 설정/퍼즐 push·back과 세로/가로 회전도 확인한다. 정답 제출·계정 인증·DB 삭제는 하지 않고 종료 시 회전 설정을 복원한다. 로그는 ignored `artifacts/screens-fix/startup`에 남는다. 소수 회차 통과를 장시간·모든 기기의 안정성 보증으로 해석하지 않는다.
+`ANDROID_HOME`이 필요하다. 매번 앱을 force-stop 후 deep link로 열고 실제 문제 화면·동일 PID·크래시 로그를 확인한다. 5회마다 설정/퍼즐 push·back과 가로 회전 요청 후에도 세로가 유지되는지 확인한다. 정답 제출·계정 인증·DB 삭제는 하지 않고 종료 시 회전 설정을 복원한다. 로그는 ignored `artifacts/screens-fix/startup`에 남는다. 소수 회차 통과를 장시간·모든 기기의 안정성 보증으로 해석하지 않는다.
+
+화면 방향은 [Expo orientation 설정](https://docs.expo.dev/versions/v57.0.0/config/app/#orientation)에 따라 app.json에서 portrait로 지정한다. 변경 후 prebuild와 APK 재빌드·재설치가 필요하다. `native-layout-check.py`의 마지막 rotation-lock 검사는 가로 방향을 요청한 상태에서 세로 화면과 보기/버튼 도달을 확인한다.

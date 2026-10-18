@@ -21,7 +21,7 @@ density=call('shell','wm','density')
 assert 'Override' not in density, density
 try:
  call('reverse','tcp:8081','tcp:8081')
- for name,density,font,rotation in [('phone360-100',480,'1.0','0'),('phone360-200',480,'2.0','0'),('phone412-100',420,'1.0','0'),('phone412-200',420,'2.0','0'),('landscape-100',420,'1.0','1')]:
+ for name,density,font,rotation in [('phone360-100',480,'1.0','0'),('phone360-200',480,'2.0','0'),('phone412-100',420,'1.0','0'),('phone412-200',420,'2.0','0'),('rotation-lock-100',420,'1.0','1')]:
   call('shell','am','force-stop','com.teumknowledge.app')
   call('shell','settings','put','system','font_scale',font)
   call('shell','wm','density',str(density))
