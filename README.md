@@ -28,6 +28,8 @@ npx expo prebuild --platform android
 npm run android
 ```
 
+시연용 APK(Metro 없이 실행, AI 맞춤 학습의 하루 대기·한도를 줄인 빌드)는 [BUILD](docs/BUILD.md)의 "시연용 APK"를 따른다.
+
 인증용 로컬 Kotlin 모듈이 있으므로 **Expo Go에서 SIWC를 검증할 수 없습니다.** 개발용 APK에는 Metro 서버가 필요합니다. 빌드 프로필과 도구 설정은 [BUILD](docs/BUILD.md)를 확인하세요.
 
 ## 틈새 카드와 알림

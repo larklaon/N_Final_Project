@@ -30,6 +30,17 @@ cd android
 
 Debug APK는 개발용이며 Metro 연결이 필요하다. 설치 대상 ABI를 확인한다. 배포용 서명 APK는 `npx eas-cli@latest build --platform android --profile preview`로 만들 수 있도록 설정했다. EAS 계정·프로젝트·서명은 아직 연결하지 않았다. production 프로필은 추후 AAB용이다.
 
+### 시연용 APK
+
+Metro 없이 폰 하나로 실행되는 release APK에 시연 규칙을 켠다. 시연 규칙은 V4 맞춤 학습의 하루 한도와 하루 단위 대기(확인 문제는 카드 응답 1분 뒤·같은 날짜 허용, 확인 슬롯 1분마다, 자리가 없는 AI 카드는 덱 앞쪽)를 줄인 것이며, 기본 학습 규칙(채점·해상도·복습 일정)은 바꾸지 않는다.
+
+```sh
+cd android
+EXPO_PUBLIC_TEUM_DEMO=1 NODE_ENV=production ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a
+```
+
+결과: `android/app/build/outputs/apk/release/app-release.apk`. `EXPO_PUBLIC_TEUM_DEMO` 없이 빌드하면 원래 규칙(카드 응답 24시간 뒤·다른 날짜, 하루 한도)의 release APK가 된다. 값은 JS 번들에 빌드할 때 들어가므로 바꾸면 다시 빌드한다. 개발 빌드는 항상 시연 규칙이고, Jest는 항상 원래 규칙으로 검사한다.
+
 로컬 release variant가 debug key로 서명되면 외부 배포용 서명 완료로 표시하지 않는다. 키·비밀번호·APK는 Git에 넣지 않는다. 실제 빌드 결과는 VERIFICATION에 기록한다.
 
 ## 재현 제한

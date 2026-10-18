@@ -1,5 +1,13 @@
 # 개발 기록
 
+## 2026-10-19 — V4.DEMO — 시연용 APK
+
+- 시연 규칙(V4 맞춤 학습의 하루 한도·하루 단위 대기 축소, 확인 문제 1분 뒤, 자리가 없는 AI 카드는 덱 앞쪽)을 빌드 값 `EXPO_PUBLIC_TEUM_DEMO=1`로 켤 수 있게 했다. 개발 빌드는 그대로 시연 규칙, Jest와 값 없는 release는 원래 규칙. 기본 학습 규칙(채점·해상도·복습 일정)은 바꾸지 않는다. 빌드 명령은 BUILD.md.
+- `EXPO_PUBLIC_TEUM_DEMO=1 NODE_ENV=production ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a` → 48,022,569 bytes, SHA256 `e836e9b2d5a7fce7ff2abafa123ae2029547de62a10c04ba581ebc7d735a7494`. 로컬 ignored `artifacts/teum-knowledge-0.1.0-demo-arm64.apk`. 기본 debug key 서명(외부 배포 서명 아님), Hermes 번들 내장.
+- API36에 데이터 유지 설치(같은 debug key라 기존 기록·ChatGPT 연결 유지). adb reverse를 지운 상태로 Metro 없이 실행, 개발 메뉴 없음, 크래시 로그 없음. 시연 규칙 확인: 복습일이 아닌 기본키의 AI 카드가 위젯 덱 맨 앞에 놓임(원래 규칙에서는 들어가지 않음). release는 디버깅이 꺼져 있어 DB를 직접 읽지 않았다. AI 맞춤 학습은 확인 뒤 다시 끔.
+- 지금 에뮬레이터에는 release(시연) 앱이 깔려 있다. 개발을 이어 하려면 debug APK를 다시 설치하고 `adb reverse tcp:8081 tcp:8081`.
+- 검증: Jest 156·lint·타입.
+
 ## 2026-10-19 — V4.FIX2 — 해설 문장 · 무효 확인 문제
 
 - V4.FIX 확인 후속. 앱이 구성하는 AI 카드 해설에 검토용 범위 메모가 괄호로 붙어 잠금 화면·위젯에 "(일반적인 큐(우선순위 큐 제외))", "(관계형 데이터베이스(PostgreSQL 문서 기준))"처럼 보이던 것을 고쳤다. 기준 자료 사실에 학습자용 예외 메모(`note`)를 따로 두고(큐 2개 "우선순위 큐는 예외", 외래키 일치 "외래키 값이 NULL이 아닐 때"), 해설은 사실 문장과 이 메모만 쓴다. 범위 메모(`condition`)는 생성·검토 요청에만 남는다. 이미 저장된 카드의 해설은 바꾸지 않는다.

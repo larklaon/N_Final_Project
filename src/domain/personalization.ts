@@ -34,11 +34,14 @@ export const LIMITS = {
 } as const;
 
 /**
- * True only in a development build running on a device or emulator, never in a test run or a
- * release. There the daily quotas and the day-long waits are shortened so the whole loop
- * (card → answer → check → resolved) can be tried in one sitting.
+ * Demo rules: the daily quotas and the day-long waits are shortened so the whole loop
+ * (card → answer → check → resolved) can be shown in one sitting. On in a demo APK built with
+ * EXPO_PUBLIC_TEUM_DEMO=1 and in a development build on a device; never in a test run or a
+ * normal release, which keep the product rules.
  */
-export const TESTING = typeof __DEV__ !== "undefined" && __DEV__ && process.env.NODE_ENV !== "test";
+const DEMO_BUILD = process.env.EXPO_PUBLIC_TEUM_DEMO === "1";
+export const TESTING =
+  DEMO_BUILD || (typeof __DEV__ !== "undefined" && __DEV__ && process.env.NODE_ENV !== "test");
 export const RULES = TESTING
   ? {
       gapApprovedPerDay: 20,
