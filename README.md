@@ -77,4 +77,6 @@ npm run android
 - 사용: [설치 가이드](docs/INSTALL.md) · [빌드](docs/BUILD.md)
 - 검증과 기록: [검증 결과](docs/VERIFICATION.md) · [최종 검수 수정](docs/FINAL_FIXES.md) · [ChatGPT 연동 상태](docs/SIWC_STATUS.md) · [개발 기록](docs/WORK_LOG.md)
 
+구성원은 **송영준 · 이관주 · 김혜민**입니다.
+
 3인 팀 프로젝트입니다. 문제 정의와 기획, 화면 설계, 앱과 Kotlin 모듈 구현, 자동 검증, APK 제작과 문서화를 이 저장소에서 진행했습니다. 단계별 수정과 검증은 Git 이력과 [개발 기록](docs/WORK_LOG.md)에 남겼습니다.
