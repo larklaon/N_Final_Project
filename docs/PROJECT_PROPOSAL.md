@@ -54,7 +54,7 @@ AI가 생성한 카드는 승인된 기준 자료의 사실과 조건을 바탕�
 | 개인화 학습 V4와 검수 수정 | 2026-10-18~19 | 근거 메모리, 생성·검토, 확인 문제, 경계 결함 수정 |
 | APK와 제출 자료 | 2026-10-19 | Metro 없이 실행하는 시연용 arm64 APK, V4 기획서·명세서·발표 자료 작성 |
 
-현재 APK는 **시연용**이다. 맞춤 학습의 대기 시간과 일일 한도를 줄였고 기본 채점·해상도·복습 계산은 그대로다. APK는 로컬에서 제작·설치해 실행했다. 정확한 빌드 결과와 검증 범위는 [BUILD](BUILD.md)와 [VERIFICATION](VERIFICATION.md)을 따른다.
+현재 APK는 **시연용**이다. 맞춤 학습의 대기 시간과 일일 한도를 줄였고 기본 채점·해상도·복습 계산은 그대로다. APK는 로컬에서 제작·설치해 실행했으며, [Google Drive 다운로드 링크](https://drive.google.com/file/d/17EUrKKdw9NOm-5nluntDH5FhYkvwNrCk/view?usp=drive_link)로 제공한다. 정확한 빌드 결과와 검증 범위는 [BUILD](BUILD.md)와 [VERIFICATION](VERIFICATION.md)을 따른다.
 
 ## 범위와 한계
 

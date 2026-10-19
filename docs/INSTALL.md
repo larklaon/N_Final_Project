@@ -3,12 +3,13 @@
 ## 준비
 
 - Android 8.0 이상 휴대폰(대부분의 최근 폰, arm64)
-- APK 파일: `teum-knowledge-0.1.0-demo-arm64.apk`
+- [시연용 APK 다운로드 · Google Drive](https://drive.google.com/file/d/17EUrKKdw9NOm-5nluntDH5FhYkvwNrCk/view?usp=drive_link)
+- APK 파일: `teum-knowledge-0.1.0-demo-arm64.apk` (약 48MB)
 - AI 기능을 보여 줄 경우: ChatGPT 계정(플랜 사용 가능 계정)
 
 ## 설치
 
-1. APK 파일을 폰으로 옮긴다(카카오톡·드라이브·USB 등).
+1. 폰에서 위 다운로드 링크를 열고 Google Drive의 **다운로드**를 누른다. 컴퓨터에서 받았다면 APK 파일을 USB 등으로 폰에 옮긴다.
 2. 폰에서 파일을 연다.
 3. "출처를 알 수 없는 앱" 안내가 나오면 **설정 → 이 출처 허용**을 켜고 돌아온다.
 4. **설치**를 누른다. Play 프로텍트 경고가 나오면 **무시하고 설치**(또는 세부정보 → 설치)를 고른다.

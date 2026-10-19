@@ -1,5 +1,11 @@
 # 개발 검증 결과
 
+## APK 다운로드 경로 (2026-10-19, DOC.DISTRIBUTION)
+
+- 사용자가 업로드한 [시연용 APK · Google Drive](https://drive.google.com/file/d/17EUrKKdw9NOm-5nluntDH5FhYkvwNrCk/view?usp=drive_link)를 README·설치 가이드·기획서·아키텍처에 연결했다.
+- Drive 메타데이터에서 파일명 `teum-knowledge-0.1.0-demo-arm64.apk`, Android APK MIME, 48,025,841bytes와 `anyone/reader`(링크를 가진 사용자 보기, 검색 노출 꺼짐) 권한을 확인했다. 원본 파일 스트리밍도 성공했다. 공유 설정은 변경하지 않았다.
+- 파일명·크기는 FINAL.FIX의 로컬 시연용 APK와 일치한다. 공유 파일의 SHA256 동일성은 이번에 확인하지 않았다. 앱 재빌드·재설치·새 OAuth·AI 호출은 수행하지 않았다.
+
 ## V4 마무리 검수 수정 (2026-10-19, FINAL.FIX)
 
 - FINAL-R1–R4 수정: 동의 변경의 동기 취소·dispatch 재확인, 채팅의 공통 큐와 ID 이전 취소, 삭제 뒤 늦은 응답 거부, native 정리·소유권 해제 후 terminal 전달. 상세는 [FINAL_FIXES](FINAL_FIXES.md).
@@ -146,7 +152,7 @@ Jest의 저장 테스트는 Node SQLite 실제 DB에 schema와 트랜잭션을 �
 
 ## 추후 메모
 
-신규 계정 인증, 다른 물리 기기에서의 동작과 콘텐츠 정확성은 현재 자동 검증 범위 밖입니다. 시연용 APK는 로컬 산출물이며 외부 다운로드 링크는 아직 없습니다.
+신규 계정 인증, 다른 물리 기기에서의 동작과 콘텐츠 정확성은 현재 자동 검증 범위 밖입니다. 시연용 APK는 [Google Drive](https://drive.google.com/file/d/17EUrKKdw9NOm-5nluntDH5FhYkvwNrCk/view?usp=drive_link)에서 제공합니다. 공유 파일·권한 확인 결과는 위 DOC.DISTRIBUTION 항목을 따릅니다.
 
 ## 화면 증거
 

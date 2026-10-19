@@ -1,5 +1,7 @@
 # 틈지식
 
+[시연용 APK 다운로드 · Google Drive](https://drive.google.com/file/d/17EUrKKdw9NOm-5nluntDH5FhYkvwNrCk/view?usp=drive_link) · [설치 가이드](docs/INSTALL.md)
+
 **잠깐의 틈에 스치는 지식.** 잠금 화면에서 기초 개념을 스치고, 앱을 열면 그 개념을 한 단계 깊은 문제로 맞춰 가는 Android 학습 앱입니다.
 
 자격증 공부를 시작하려는 사람은 매일 긴 학습 시간을 내기 어렵습니다. 틈지식은 폰을 켤 때마다 마주치는 짧은 O/X 카드로 개념을 자주 접하게 하고, 앱 안에서는 하루 몇 문제의 상황형 문제로 이해를 확인합니다. 정보처리기사 기초와 SQLD 맛보기 과목을 담았고, ChatGPT를 연결하면 AI가 학습자가 자주 헷갈리는 지점을 기억해 맞춤 카드와 확인 문제를 만듭니다.
@@ -42,7 +44,7 @@
 
 ## 설치와 실행
 
-**시연용 APK** — 컴퓨터 없이 폰 하나로 실행되는 빌드입니다. 설치와 시연 순서는 [설치 가이드](docs/INSTALL.md)를 따르세요. 시연을 위해 AI 맞춤 학습의 대기 시간(실제 규칙은 카드에 답하고 24시간 뒤·다른 날짜)과 하루 한도만 줄였고, 채점·해상도·복습 계산은 그대로입니다. Android 8.0 이상, arm64 기기를 지원합니다.
+**[시연용 APK 다운로드](https://drive.google.com/file/d/17EUrKKdw9NOm-5nluntDH5FhYkvwNrCk/view?usp=drive_link)** — 컴퓨터 없이 폰 하나로 실행되는 빌드입니다. 설치와 시연 순서는 [설치 가이드](docs/INSTALL.md)를 따르세요. 시연을 위해 AI 맞춤 학습의 대기 시간(실제 규칙은 카드에 답하고 24시간 뒤·다른 날짜)과 하루 한도만 줄였고, 채점·해상도·복습 계산은 그대로입니다. Android 8.0 이상, arm64 기기를 지원합니다.
 
 **개발 환경** — Node 24 LTS, JDK 17, Android SDK 36이 필요합니다. 로컬 Kotlin 모듈이 있어 Expo Go 대신 Development Build를 씁니다.
 

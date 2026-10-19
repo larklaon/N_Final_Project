@@ -1,5 +1,12 @@
 # 개발 기록
 
+## 2026-10-19 — DOC.DISTRIBUTION — Drive APK 다운로드 경로
+
+- 사용자 제공 Google Drive 공유 링크를 README 상단·설치 절차·기획서·아키텍처·검증 결과에 반영했다. 외부 다운로드 링크가 없다는 현재 상태 설명을 갱신했다. 과거 체크포인트 기록은 보존한다.
+- 공유 파일 메타데이터 확인: `teum-knowledge-0.1.0-demo-arm64.apk`, Android APK MIME, 48,025,841bytes, `anyone/reader`, 검색 노출 꺼짐. 원본 파일 스트리밍 성공. 링크·권한을 새로 만들거나 변경하지 않았다.
+- 검증: TypeScript·ESLint, Markdown 로컬 링크 검사, 5개 문서의 다운로드 URL 일치 검사, git diff --check 통과. 파일명·크기는 FINAL.FIX 로컬 APK와 같으며 공유 파일 SHA256 대조는 이번에 수행하지 않았다. 앱 소스·APK·서명 변경이나 재빌드는 없다.
+- 상태: 외부 APK 다운로드 경로를 제공한다. 과제의 배포 인정 판정을 완료로 단정하지 않는다. 설치 방법은 INSTALL, 시연 규칙은 BUILD를 따른다.
+
 ## 2026-10-19 — FINAL.FIX — 마무리 검수 4건 수정
 
 - 상태: FINAL-R1–R4 수정·회귀 검사 완료. 동의 변경의 repository 이벤트로 계획·채팅·맞춤 준비를 취소하고 실제 dispatch 직전에 동의·소유권을 재확인한다. 학습 scope를 변경하지 않아 문제 화면의 선택은 보존한다.
