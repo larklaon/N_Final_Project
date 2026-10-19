@@ -1,10 +1,10 @@
 # 틈지식
 
-자격증 공부를 시작하기 전, 기초 개념을 틈틈이 스치고 맞춰 가는 Android 학습 앱입니다. React Native + Expo Development Build로 개발한 로컬 우선 앱이며, 현재 V4까지 구현되어 있습니다. 휴대폰 앱은 세로 화면으로 고정됩니다.
+자격증 공부를 시작하기 전, 기초 개념을 틈틈이 스치고 맞춰 가는 Android 학습 앱입니다. React Native + Expo로 개발한 로컬 우선 앱이며, 현재 V4까지 구현되어 있습니다. 휴대폰 앱은 세로 화면으로 고정됩니다. 개인 프로젝트입니다.
 
 ## 구현 기능
 
-공부하는 앱이 아니라 **공부한다고 착각하는 앱**이다. 두 층으로 동작한다.
+**잠깐의 틈에 스치는 지식.** 두 층으로 동작한다.
 
 - **틈새 층:** 잠금 화면에 소리·진동 없이 놓이는 O/X 카드(두 줄에 맞춘 짧은 문장)와 홈 위젯. 위젯은 크기에 따라 O/X·용어 맞히기 4지선다·3지선다를 돌아가며 낸다. 앱을 열지 않고 탭 한 번으로 답하고, 응답은 학습 기록에 남는다.
 - **앱 층:** 앱을 열면 문제 하나만 보인다. 어두운 화면 사이 밝은 띠(틈) 안에 한 단계 깊은 상황형 문제가 있다. 하루 3·5·10문제. 문제가 기댄 "스친 조각"을 누르면 그 카드를 다시 풀 수 있다.
@@ -28,7 +28,7 @@ npx expo prebuild --platform android
 npm run android
 ```
 
-시연용 APK(Metro 없이 실행, AI 맞춤 학습의 하루 대기·한도를 줄인 빌드)는 [BUILD](docs/BUILD.md)의 "시연용 APK"로 만들고, 폰 설치와 시연 순서는 [설치 가이드](docs/INSTALL.md)를 따른다.
+시연용 APK(Metro 없이 실행, AI 맞춤 학습의 하루 대기·한도를 줄인 빌드)는 [BUILD](docs/BUILD.md)의 "시연용 APK"로 만들고, 폰 설치와 시연 순서는 [설치 가이드](docs/INSTALL.md)를 따른다. APK는 현재 로컬 산출물이며 외부 다운로드 링크와 전용 배포 서명은 준비되지 않았다.
 
 인증용 로컬 Kotlin 모듈이 있으므로 **Expo Go에서 SIWC를 검증할 수 없습니다.** 개발용 APK에는 Metro 서버가 필요합니다. 빌드 프로필과 도구 설정은 [BUILD](docs/BUILD.md)를 확인하세요.
 
@@ -40,6 +40,7 @@ npm run android
 
 ## 검증과 진행 기록
 
+- [프로젝트 기획서](docs/PROJECT_PROPOSAL.md) · [기능·비기능 요구사항](docs/REQUIREMENTS.md) · [발표 자료 원고](docs/PRESENTATION.md) · [발표용 PPTX](presentation/teum-knowledge-presentation.pptx)
 - [V4 구현 계획](docs/PLAN_V4.md) · [V3 구현 계획과 체크포인트](docs/PLAN_V3.md) · [V2 구현 계획](docs/PLAN_V2.md)
 - [검증 결과와 미검증 항목](docs/VERIFICATION.md)
 - [SIWC 구현·검증 상태](docs/SIWC_STATUS.md)
@@ -47,4 +48,4 @@ npm run android
 - [개발 기록](docs/WORK_LOG.md)
 - [콘텐츠 참고 자료 상태](docs/CONTENT_SOURCES.md)
 
-실사용자 5명 테스트·피드백과 외부 배포 증빙은 추후 과제 조건으로 남겨 두었습니다. 자동 검증을 실제 사용자 테스트로 집계하지 않습니다. 의존성 보안 검사에 남은 항목도 검증 문서에 기록합니다.
+개인 개발에서 문제 정의·기능 구현·Kotlin SIWC 및 틈새 모듈·화면 설계·자동 검증·APK 제작과 기술 문서화를 수행했습니다. 단계별 수정과 검증은 Git 이력 및 개발 기록에 남겼습니다. 시연용 APK의 외부 배포 증빙은 아직 없으며, 의존성 보안 검사에 남은 항목도 검증 문서에 기록합니다.
