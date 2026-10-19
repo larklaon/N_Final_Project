@@ -153,10 +153,20 @@ object GapSurfaces {
 
   private fun bindQuestion(context: Context, v: RemoteViews, card: GapCard, compact: Boolean) {
     // Collapsed shows the short lock-screen wording; expanded shows the full prompt.
-    v.setTextViewText(R.id.gap_prompt, if (compact) card.collapsedPrompt else card.prompt)
-    v.setContentDescription(R.id.gap_prompt, if (card.isAi) "AI가 만든 카드. ${card.prompt}" else card.prompt)
-    v.setInt(R.id.gap_prompt, "setMaxLines", if (!compact) 5 else if (card.isOx) 2 else 1)
-    v.setTextViewTextSize(R.id.gap_prompt, TypedValue.COMPLEX_UNIT_SP, if (compact) 14f else 16f)
+    val description = if (card.isAi) "AI가 만든 카드. ${card.prompt}" else card.prompt
+    // Collapsed O/X: a self-shrinking two-line copy so the sentence is never cut on a narrow band.
+    val shrink = compact && card.isOx
+    v.setViewVisibility(R.id.gap_prompt, if (shrink) View.GONE else View.VISIBLE)
+    v.setViewVisibility(R.id.gap_prompt_compact, if (shrink) View.VISIBLE else View.GONE)
+    if (shrink) {
+      v.setTextViewText(R.id.gap_prompt_compact, card.collapsedPrompt)
+      v.setContentDescription(R.id.gap_prompt_compact, description)
+    } else {
+      v.setTextViewText(R.id.gap_prompt, if (compact) card.collapsedPrompt else card.prompt)
+      v.setContentDescription(R.id.gap_prompt, description)
+      v.setInt(R.id.gap_prompt, "setMaxLines", if (!compact) 5 else 1)
+      v.setTextViewTextSize(R.id.gap_prompt, TypedValue.COMPLEX_UNIT_SP, if (compact) 14f else 16f)
+    }
     // Collapsed: O/X keys beside the band. Expanded: wide O/X keys, or the choices, below it.
     val inlineOx = card.isOx && compact
     val wideOx = card.isOx && !compact

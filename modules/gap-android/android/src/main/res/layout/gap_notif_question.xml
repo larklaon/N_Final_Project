@@ -10,6 +10,13 @@
       <TextView android:id="@+id/gap_prompt" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:maxLines="2" android:ellipsize="end" android:fontFamily="serif" android:textStyle="bold"
         android:includeFontPadding="false" android:textColor="#FF121513" android:textSize="13sp" />
+      <!-- Collapsed only: the band is narrower on some launchers (Samsung: big app icon, wide keys),
+           so the two lines shrink to fit instead of cutting the sentence. Autosize needs a fixed height. -->
+      <TextView android:id="@+id/gap_prompt_compact" android:layout_width="match_parent" android:layout_height="38dp"
+        android:maxLines="2" android:fontFamily="serif" android:textStyle="bold" android:gravity="center_vertical"
+        android:includeFontPadding="false" android:textColor="#FF121513" android:textSize="14sp"
+        android:autoSizeTextType="uniform" android:autoSizeMinTextSize="10sp" android:autoSizeMaxTextSize="14sp"
+        android:autoSizeStepGranularity="0.5sp" android:visibility="gone" />
     </LinearLayout>
     <LinearLayout android:id="@+id/gap_ox_row" android:layout_width="wrap_content" android:layout_height="wrap_content"
       android:layout_marginStart="8dp" android:orientation="horizontal">
