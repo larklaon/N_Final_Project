@@ -10,13 +10,24 @@ export type Priority = "chat" | "plan" | "background";
 const rank: Record<Priority, number> = { chat: 3, plan: 2, background: 1 };
 
 type Running = { priority: Priority; abort: () => void; idle: Promise<void> };
+type RequestOptions = {
+  /** Recheck permission/ownership in the same turn that actually dispatches. */
+  canDispatch?: () => boolean;
+  onDelta?: (text: string) => void;
+};
+export class AiResponseError extends Error {
+  constructor(readonly event: AiEvent) {
+    super(event.code ?? event.type);
+  }
+}
 let running: Running | null = null;
 let chatHolds = 0;
 type Queued = {
-  priority: "plan" | "background";
+  priority: Priority;
   request: object;
   signal: AbortSignal;
   timeoutMs?: number;
+  options: RequestOptions;
   resolve: (text: string) => void;
   reject: (error: unknown) => void;
   removeAbort: () => void;
@@ -46,6 +57,7 @@ export function complete(
   request: object,
   signal: AbortSignal,
   timeoutMs = 90_000,
+  options: RequestOptions = {},
 ): { result: Promise<string>; idle: Promise<void> } {
   const gateway = getSiwc();
   let markIdle!: () => void;
@@ -87,9 +99,12 @@ export function complete(
       if (e.requestId !== requestId) return;
       const terminal = e.type === "completed" || e.type === "failed" || e.type === "cancelled";
       if (!settled) {
-        if (e.type === "delta") text += e.text ?? "";
+        if (e.type === "delta") {
+          text += e.text ?? "";
+          options.onDelta?.(e.text ?? "");
+        }
         if (e.type === "completed") finish(() => resolve(e.text ?? text));
-        if (e.type === "failed" || e.type === "cancelled") finish(() => reject(Error(e.code ?? e.type)));
+        if (e.type === "failed" || e.type === "cancelled") finish(() => reject(new AiResponseError(e)));
       }
       if (terminal) finishIdle();
     };
@@ -100,7 +115,7 @@ export function complete(
       else fallback ??= setTimeout(finishIdle, IDLE_FALLBACK_MS);
     }, timeoutMs);
     signal.addEventListener("abort", abort);
-    if (signal.aborted) {
+    if (signal.aborted || options.canDispatch?.() === false) {
       abort();
       finishIdle();
       return;
@@ -137,7 +152,7 @@ function drain() {
     if (rank[queue[i].priority] > rank[queue[best].priority]) best = i;
   const [item] = queue.splice(best, 1);
   item.removeAbort();
-  if (item.signal.aborted) {
+  if (item.signal.aborted || item.options.canDispatch?.() === false) {
     item.reject(Error("plan_invalidated"));
     drain();
     return;
@@ -146,7 +161,7 @@ function drain() {
   const abort = () => controller.abort();
   item.signal.addEventListener("abort", abort);
   if (item.signal.aborted) controller.abort();
-  const { result, idle } = complete(item.request, controller.signal, item.timeoutMs);
+  const { result, idle } = complete(item.request, controller.signal, item.timeoutMs, item.options);
   const entry: Running = { priority: item.priority, abort, idle };
   running = entry;
   void idle.then(() => {
@@ -156,12 +171,13 @@ function drain() {
   void result.then(item.resolve, item.reject).finally(() => item.signal.removeEventListener("abort", abort));
 }
 
-/** A cancellable, priority-ordered queue for plan and personalization requests. */
+/** A cancellable, priority-ordered queue for every chat, plan and personalization request. */
 export function runRequest(
-  priority: "plan" | "background",
+  priority: Priority,
   request: object,
   signal: AbortSignal,
   timeoutMs?: number,
+  options: RequestOptions = {},
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) return reject(Error("plan_invalidated"));
@@ -172,7 +188,7 @@ export function runRequest(
       item.removeAbort();
       reject(Error("plan_invalidated"));
     };
-    const item: Queued = { priority, request, signal, timeoutMs, resolve, reject,
+    const item: Queued = { priority, request, signal, timeoutMs, options, resolve, reject,
       removeAbort: () => signal.removeEventListener("abort", abort) };
     signal.addEventListener("abort", abort);
     queue.push(item);

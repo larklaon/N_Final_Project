@@ -26,11 +26,12 @@ export function usePersonalization() {
       else rearm();
     });
     const scope = repo.onScopeChange(() => { stop(); rearm(); });
+    const consent = repo.onAiConsentChange(() => { stop(); rearm(); });
     const invalidation = repo.personal.onInvalidated(() => { stop(); rearm(); });
     const input = repo.onPersonalizationInput(rearm);
     return () => {
       mounted.current = false;
-      app.remove(); scope(); invalidation(); input(); stop();
+      app.remove(); scope(); consent(); invalidation(); input(); stop();
     };
   }, [repo]);
 

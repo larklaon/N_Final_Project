@@ -1,6 +1,8 @@
 # V4 마무리 검수 재현
 
-기준 커밋: `ea1b25771325e3e299b15b14c9bcbf84415fa549`. 수정 전 결함을 재현하는 자료다. 기대 동작을 단언하므로 현재 소스에서는 Jest 3개와 Kotlin 1개가 실패한다. [검수 보고서](../../FINAL_AUDIT.md)의 FINAL-R1–R4에 대응한다.
+기준 커밋: `ea1b25771325e3e299b15b14c9bcbf84415fa549`. 수정 전 결함을 재현하는 자료다. 이 커밋에서는 Jest 3개와 Kotlin 1개가 기대 동작 단언에서 실패했다. [검수 보고서](../../FINAL_AUDIT.md)의 FINAL-R1–R4에 대응한다.
+
+후속 FINAL.FIX에서 수정했다. 현재 정상 회귀 검사는 `src/services/ai/__tests__/FinalBoundaryFixes.test.tsx`와 `modules/siwc-android/android/src/test/java/com/teumknowledge/siwc/FinalTerminalAuditTest.kt`다. [수정 기록](../../FINAL_FIXES.md)을 따른다. 아래 복사 명령은 **수정 전 커밋의 별도 체크아웃**에서 재현할 때만 사용하고 현재 정상 테스트를 덮어쓰지 않는다.
 
 기본 테스트에 실패 fixture를 섞지 않도록 `.fixture`로 보관한다. 아래 명령은 저장소 루트 기준이다. 같은 이름의 파일이 이미 있으면 덮어쓰지 말고 확인한다.
 

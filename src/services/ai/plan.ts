@@ -32,10 +32,13 @@ export async function requestPlan(
   const controller = new AbortController();
   const abort = () => controller.abort();
   const unsubscribe = repo.onScopeChange(abort);
+  const unsubscribeConsent = repo.onAiConsentChange(abort);
   signal?.addEventListener("abort", abort);
   if (signal?.aborted) abort();
+  const current = () => !controller.signal.aborted && repo.learningScope === scope &&
+    repo.activeLearner === learner && repo.snapshot().settings.aiConsentAt === snapshot.settings.aiConsentAt;
   const assertCurrent = () => {
-    if (controller.signal.aborted || repo.learningScope !== scope || !repo.snapshot().settings.aiConsentAt)
+    if (!current())
       throw Error("plan_invalidated");
   };
   try {
@@ -47,7 +50,7 @@ export async function requestPlan(
         model,
         instructions: planInstructions,
         input,
-      }, controller.signal);
+      }, controller.signal, undefined, { canDispatch: current });
       assertCurrent();
       let plan: Plan;
       try {
@@ -63,6 +66,7 @@ export async function requestPlan(
     throw lastError;
   } finally {
     unsubscribe();
+    unsubscribeConsent();
     signal?.removeEventListener("abort", abort);
   }
 }

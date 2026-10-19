@@ -57,6 +57,12 @@ export const defaultSettings: Settings = {
 };
 export class LearningRepository {
   private scopeListeners = new Set<() => void>();
+  private aiConsentListeners = new Set<() => void>();
+  /** Consent changes cancel AI work without resetting the current learning screen. */
+  onAiConsentChange(listener: () => void) {
+    this.aiConsentListeners.add(listener);
+    return () => { this.aiConsentListeners.delete(listener); };
+  }
   private personalizationInputListeners = new Set<() => void>();
   onPersonalizationInput(listener: () => void) {
     this.personalizationInputListeners.add(listener);
@@ -262,6 +268,8 @@ export class LearningRepository {
       this.touch(learner);
     });
     this.notifyScopeChange(previousScope);
+    if (settings.aiConsentAt !== old.aiConsentAt)
+      for (const listener of this.aiConsentListeners) listener();
   }
   private touch(learner: string) {
     this.db.runSync(

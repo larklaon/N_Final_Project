@@ -1,6 +1,16 @@
 # 개발 검증 결과
 
+## V4 마무리 검수 수정 (2026-10-19, FINAL.FIX)
+
+- FINAL-R1–R4 수정: 동의 변경의 동기 취소·dispatch 재확인, 채팅의 공통 큐와 ID 이전 취소, 삭제 뒤 늦은 응답 거부, native 정리·소유권 해제 후 terminal 전달. 상세는 [FINAL_FIXES](FINAL_FIXES.md).
+- `npm run check`: 타입·ESLint·Jest **169/169 (26 suites)**·콘텐츠72/144/72·네이티브 패치3 통과. SIWC JUnit **38/38**·Gap **17/17**, debug·AndroidTest·시연용 release APK 빌드 통과.
+- 수정 전 재현을 정상 회귀 검사로 전환했다. 동의 재허용·배경 전환·unmount·늦은 ID·중지 직후 새 요청·completed/SSE 실패/HTTP 실패 후 다음 요청까지 확인했다.
+- 새 시연 APK: **48,025,841 bytes**, SHA256 `20254fc38ce902a324d39b5fae687fa87194b954e571a64b72e155911b768cfb`. 데이터 유지 설치, Metro 없는 문제 화면 실행 2/2·PID 유지·앱 크래시 없음. 새 OAuth·실제 AI 호출은 이번에 다시 실행하지 않았다.
+- 검사 뒤 최신 debug APK와 8081 reverse 복구. DB 초기화·계정 변경·정답 제출 없음. 이전 검수 보고서는 당시 기록으로 보존한다.
+
 ## V4 마무리 검수 (2026-10-19, FINAL.AUDIT)
+
+아래는 수정 전 기록이며, 4건의 후속 수정·최신 검증은 위 FINAL.FIX를 따른다.
 
 - 대상 `ea1b257`. 기본 `npm run check`(Jest158·타입·린트·콘텐츠·패치3)와 SIWC35/Gap17 Kotlin/JUnit 재실행, debug·AndroidTest APK 빌드 통과.
 - 추가 경계 재현에서 4건 확인: 동의 철회 뒤 대기 계획 전송, 대화 삭제 뒤 늦은 답변 저장, ID 반환 전 중지 무시, native 완료 이벤트와 busy 해제의 순서 불일치. Jest3·Kotlin1 fixture는 기대 동작 단언에서 실패했다.

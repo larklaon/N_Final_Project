@@ -170,11 +170,16 @@ class SiwcManager private constructor(private val context: Context) {
    val q=JSONObject(raw);require(q.getString("instructions").length<=16000 && q.getJSONArray("input").toString().length<=24000)
    val id=UUID.randomUUID().toString();responseId=id
    io.execute {
+     var terminal: Map<String,Any>?=null
      try {
        val body=JSONObject().put("model",q.getString("model")).put("instructions",q.getString("instructions"))
          .put("input",q.getJSONArray("input")).put("store",false).put("stream",true)
        resources.response(q.getString("profileId"),id,body.toString().toRequestBody("application/json".toMediaType()),{ responseId==id }) { res ->
-         val acc=ResponseAccumulator { kind,text -> if(responseId==id) emit?.invoke(mapOf("requestId" to id,"type" to kind,(if(kind=="failed") "code" else "text") to text)) }
+         val acc=ResponseAccumulator { kind,text ->
+           val event=mapOf("requestId" to id,"type" to kind,(if(kind=="failed") "code" else "text") to text)
+           if(kind=="delta") synchronized(registry.lock) { if(responseId==id) emit?.invoke(event) }
+           else terminal=event
+         }
          val reader=res.body?.source() ?: error("empty_body");val data=StringBuilder()
          while(!reader.exhausted() && !acc.terminal) {
            val line=reader.readUtf8LineStrict(65536)
@@ -184,8 +189,17 @@ class SiwcManager private constructor(private val context: Context) {
          acc.end()
        }
      } catch(e: Exception) {
-       if(responseId==id) emit?.invoke(responseFailureEvent(id,e))
-     } finally { synchronized(registry.lock) { if(responseId==id) responseId=null } }
+       terminal=responseFailureEvent(id,e)
+     } finally {
+       // HTTP/registry cleanup finishes before terminal means "idle" to the JS queue.
+       // A cancelled worker cannot emit again or clear the next request's ownership.
+       synchronized(registry.lock) {
+         if(responseId==id) {
+           responseId=null
+           terminal?.let { emit?.invoke(it) }
+         }
+       }
+     }
    }
    return mapOf("requestId" to id)
  }

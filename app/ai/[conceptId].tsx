@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   AppState,
@@ -15,7 +15,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Button, IconButton, Message } from "../../src/components/ui";
 import { useApp } from "../../src/platform/AppProvider";
-import { getSiwc, type AiEvent } from "../../modules/siwc-android";
 import {
   buildLearningContext,
   chatInstructions,
@@ -23,7 +22,7 @@ import {
 import { aiErrorMessage } from "../../src/services/ai/errors";
 import { useProfileModels } from "../../src/services/ai/useProfileModels";
 import { openSubscriptionUsage } from "../../src/services/ai/subscriptionUsage";
-import { beginChat } from "../../src/services/ai/requestCoordinator";
+import { AiResponseError, runRequest } from "../../src/services/ai/requestCoordinator";
 import { RichText } from "../../src/components/RichText";
 import type { ChatMessage } from "../../src/domain/types";
 import { colors, fonts, type } from "../../src/theme/tokens";
@@ -66,15 +65,22 @@ function AskAiScreen() {
   );
   const scroll = useRef<ScrollView>(null);
   const active = useRef<{
-    requestId: string | null;
+    controller: AbortController;
     learner: string;
     scope: string;
-    buffer: AiEvent[];
-    /** Lets background AI work run again once this chat turn is over. */
-    release: () => void;
+    consentAt: number | null;
   } | null>(null);
   const mounted = useRef(true);
-  const handleEvent = useRef<(event: AiEvent) => void>(() => {});
+  /** Invalidate immediately, including while the native request ID is still pending. */
+  const stop = useCallback(() => {
+    const turn = active.current;
+    active.current = null;
+    turn?.controller.abort();
+    if (mounted.current) {
+      setStreaming(null);
+      setFailed(false);
+    }
+  }, []);
   const concept = snapshot.concepts.find((c) => c.id === conceptId);
   // Opened from a question: the question itself is the context, not a quoted passage.
   const question = (() => {
@@ -100,60 +106,17 @@ function AskAiScreen() {
 
   useEffect(() => {
     mounted.current = true;
-    function handle(event: AiEvent) {
-      const a = active.current;
-      if (!a) return;
-      if (a.requestId === null) {
-        a.buffer.push(event);
-        return;
-      }
-      if (
-        a.requestId !== event.requestId ||
-        a.learner !== repo.activeLearner ||
-        a.scope !== repo.learningScope ||
-        !mounted.current
-      )
-        return;
-      if (event.type === "delta")
-        setStreaming((t) => (t ?? "") + (event.text ?? ""));
-      if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") a.release();
-      if (event.type === "completed") {
-        repo.addChatMessage(a.learner, conceptId, "assistant", event.text ?? "");
-        setMessages(repo.chatMessages(conceptId));
-        setStreaming(null);
-        active.current = null;
-      }
-      if (event.type === "failed") {
-        setStreaming(null);
-        setFailed(true);
-        setError(aiErrorMessage(event));
-        active.current = null;
-        void refreshAuth();
-      }
-      if (event.type === "cancelled") {
-        setStreaming(null);
-        active.current = null;
-      }
-    }
-    handleEvent.current = handle;
-    let sub: { remove(): void } | undefined;
-    try {
-      sub = getSiwc().addListener("onResponse", handle);
-    } catch {}
     const appSub = AppState.addEventListener("change", (state) => {
-      if (state !== "active" && active.current?.requestId)
-        void getSiwc().cancelResponse(active.current.requestId);
+      if (state !== "active") stop();
     });
+    const scope = repo.onScopeChange(stop);
+    const consent = repo.onAiConsentChange(stop);
     return () => {
       mounted.current = false;
-      sub?.remove();
       appSub.remove();
-      const id = active.current?.requestId;
-      active.current?.release();
-      active.current = null;
-      if (id) void getSiwc().cancelResponse(id);
+      scope(); consent(); stop();
     };
-  }, [repo, conceptId, refreshAuth]);
+  }, [repo, stop]);
 
   /** Sends the conversation so far; the newest user message is already stored. */
   async function respond(history: ChatMessage[]) {
@@ -162,13 +125,16 @@ function AskAiScreen() {
     setFailed(false);
     setStreaming("");
     const a = {
-      requestId: null as string | null,
+      controller: new AbortController(),
       learner: repo.activeLearner,
       scope: repo.learningScope,
-      buffer: [] as AiEvent[],
-      release: () => {},
+      consentAt: repo.snapshot().settings.aiConsentAt,
     };
     active.current = a;
+    const currentTurn = () => active.current === a && mounted.current && !a.controller.signal.aborted &&
+      a.learner === repo.activeLearner && a.scope === repo.learningScope && !!a.consentAt &&
+      repo.snapshot().settings.aiConsentAt === a.consentAt &&
+      AppState.currentState !== "background" && AppState.currentState !== "inactive";
     try {
       let current = repo.snapshot();
       const model =
@@ -208,30 +174,32 @@ function AskAiScreen() {
           content: m.quote ? `「${m.quote}」\n\n${m.text}` : m.text,
         })),
       ];
-      // The learner's question goes first: background AI work is cancelled and waited for.
-      a.release = await beginChat();
-      if (active.current !== a || !mounted.current) return a.release();
-      const result = await getSiwc().startResponse(
-        JSON.stringify({ profileId: auth.profileId, model, instructions: chatInstructions, input }),
+      const text = await runRequest(
+        "chat",
+        { profileId: auth.profileId, model, instructions: chatInstructions, input },
+        a.controller.signal,
+        undefined,
+        {
+          canDispatch: currentTurn,
+          onDelta: (text) => { if (currentTurn()) setStreaming((value) => (value ?? "") + text); },
+        },
       );
-      if (active.current !== a || !mounted.current || a.scope !== repo.learningScope) {
-        void getSiwc().cancelResponse(result.requestId);
-        a.release();
-        return;
-      }
-      a.requestId = result.requestId;
-      // All events use the same transitions, whatever the bridge/promise ordering.
-      for (const event of a.buffer.splice(0)) handleEvent.current(event);
+      if (!currentTurn()) return;
+      repo.addChatMessage(a.learner, conceptId, "assistant", text);
+      setMessages(repo.chatMessages(conceptId));
     } catch (e) {
-      a.release();
-      if (active.current === a) {
-        active.current = null;
-        setStreaming(null);
+      if (currentTurn() && !(e instanceof AiResponseError && e.event.type === "cancelled")) {
         setFailed(true);
         const code = e && typeof e === "object" && "code" in e ? e.code : null;
-        setError(code === "response_busy"
+        setError(e instanceof AiResponseError ? aiErrorMessage(e.event) : code === "response_busy"
           ? aiErrorMessage({ requestId: "", type: "failed", code })
           : e instanceof Error ? e.message : "답을 받지 못했어요.");
+        void refreshAuth();
+      }
+    } finally {
+      if (active.current === a) {
+        active.current = null;
+        if (mounted.current) setStreaming(null);
       }
     }
   }
@@ -290,6 +258,7 @@ function AskAiScreen() {
                   text: "지우기",
                   style: "destructive",
                   onPress: () => {
+                    stop();
                     repo.clearChat(conceptId);
                     setMessages([]);
                   },
@@ -408,10 +377,7 @@ function AskAiScreen() {
           {busy && (
             <Pressable
               accessibilityRole="button"
-              onPress={() => {
-                const id = active.current?.requestId;
-                if (id) void getSiwc().cancelResponse(id);
-              }}
+              onPress={stop}
               style={s.stop}
             >
               <Text style={s.stopText}>답변 멈추기</Text>

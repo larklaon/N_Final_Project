@@ -4,14 +4,14 @@
 | --- | --- |
 | 공식 공개 연동 계약 | 문서 확인 (2026-10-15) |
 | Kotlin 구현 | Android debug 컴파일 통과 |
-| 프로토콜 fixture 검증 | Kotlin/JUnit 35개 통과 (V4.FIX 재실행; response 소유권 포함) |
+| 프로토콜 fixture 검증 | Kotlin/JUnit 38개 통과 (FINAL.FIX; terminal 뒤 연속 요청·response 소유권 포함) |
 | Android 네이티브 실행 | API36 개발 APK 실행 확인. 인증 서비스 수명/복귀의 이번 독립 재검증은 미실행 |
 | 실제 OAuth 로그인 | V4.R1 개발 기록에 재연결 후 호출 성공이 있음. 신규 로그인·계정 추가·실기기는 이번 독립 검증에서 미실행 |
 | 실제 response.completed | V3.END·V4.R1–Q2 개발 기록에 실제 계정 응답 확인. 이번 V4.FIX는 fixture로 검증했으며 재호출하지 않음 |
 
 토큰은 네이티브 계층 안에서 관리하며 실제 연결 성공을 모의 응답으로 대체하지 않습니다. 위 표는 후속 WORK_LOG/VERIFICATION의 실제 계정 기록과 이번 자동 검증을 구분한 것입니다.
 
-2026-10-19 마무리 검수에서 native terminal 이벤트와 busy 해제의 순서 불일치(FINAL-R4)를 로컬 SSE fixture로 재현했습니다. 정상 프로토콜 검사 35개와 별개로 열린 수정 항목입니다. 전송 동의·채팅 취소 경계의 추가 3건과 함께 [FINAL_AUDIT](FINAL_AUDIT.md)에 기록했습니다.
+2026-10-19 마무리 검수에서 재현한 native terminal/busy 순서와 전송 동의·채팅 취소 경계 4건을 FINAL.FIX에서 수정했습니다. 완료·SSE 실패·HTTP 실패 이후 연속 요청까지 정상 회귀 검사로 확인했습니다. 상세는 [FINAL_FIXES](FINAL_FIXES.md), 수정 전 기록은 [FINAL_AUDIT](FINAL_AUDIT.md)를 따릅니다.
 
 ## 구현 경계
 

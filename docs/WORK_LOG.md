@@ -1,5 +1,14 @@
 # 개발 기록
 
+## 2026-10-19 — FINAL.FIX — 마무리 검수 4건 수정
+
+- 상태: FINAL-R1–R4 수정·회귀 검사 완료. 동의 변경의 repository 이벤트로 계획·채팅·맞춤 준비를 취소하고 실제 dispatch 직전에 동의·소유권을 재확인한다. 학습 scope를 변경하지 않아 문제 화면의 선택은 보존한다.
+- 채팅을 공통 우선순위 큐에 연결했다. 삭제·중지·배경 전환·scope/동의 변경·unmount는 ID 이전에도 turn을 무효화한다. 늦은 ID는 그 요청만 취소하며 새 질문은 이전 native 유휴 판정을 기다린다. native 오류 진단은 보존한다.
+- Kotlin manager는 terminal을 보관하고 HTTP·registry 정리 뒤 자기 response ID를 해제한 다음 이벤트를 보낸다. 취소된 이전 worker가 늦은 terminal을 보내거나 새 ID를 지우지 않는 보호를 유지한다.
+- 검증: npm check(타입·ESLint·Jest169/26 suites·콘텐츠72/144/72·patch3), SIWC38/Gap17 JUnit, debug·AndroidTest·release 빌드 통과. 검수 재현을 정상 회귀 검사로 옮기고 동의 재허용·늦은 ID·취소 직후 새 요청·오류 terminal 경계를 추가 확인했다. 열린 타이머 경고 없음.
+- 시연용 APK 재빌드·데이터 유지 설치·Metro 없이 2/2회 문제 화면 실행·같은 PID 유지·앱 크래시 없음. SHA256 `20254fc38ce902a324d39b5fae687fa87194b954e571a64b72e155911b768cfb`(48,025,841bytes), 기존 artifacts 시연 APK 교체·이전 파일 보존. 개발 APK 사본도 갱신했다. APK·계정 데이터는 Git에 넣지 않는다.
+- 검사 뒤 최신 debug APK·8081 reverse 복구. DB 초기화·정답 제출·새 OAuth·실제 계정 AI 재호출 없음. 상세: FINAL_FIXES·VERIFICATION. 다음: 갱신한 APK와 문서로 시연한다.
+
 ## 2026-10-19 — FINAL.AUDIT — V4 마무리 독립 검수
 
 - 상태: 검수 완료, 재현된 수정 대상 4건. 앱 동작 코드는 수정하지 않았다. 대상은 `ea1b257`이며 기존 V4 검수의 5건과 다른 요청 경계다.

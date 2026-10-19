@@ -43,6 +43,7 @@ npm run android
 - [프로젝트 기획서](docs/PROJECT_PROPOSAL.md) · [기능·비기능 요구사항](docs/REQUIREMENTS.md) · [발표 자료 원고](docs/PRESENTATION.md) · [발표용 PPTX](presentation/teum-knowledge-course-project.pptx)
 - [V4 구현 계획](docs/PLAN_V4.md) · [V3 구현 계획과 체크포인트](docs/PLAN_V3.md) · [V2 구현 계획](docs/PLAN_V2.md)
 - [검증 결과와 미검증 항목](docs/VERIFICATION.md)
+- [마무리 검수 수정과 최신 APK](docs/FINAL_FIXES.md)
 - [SIWC 구현·검증 상태](docs/SIWC_STATUS.md)
 - [구현 아키텍처](docs/ARCHITECTURE.md)
 - [개발 기록](docs/WORK_LOG.md)

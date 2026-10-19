@@ -6,6 +6,8 @@ import AiExplanation from "../../../../app/ai/[conceptId]";
 import AuthReturn from "../../../../app/auth/return";
 import { useApp } from "../../../platform/AppProvider";
 import { getSiwc, type AiEvent } from "../../../../modules/siwc-android";
+import { resetCoordinator } from "../requestCoordinator";
+beforeEach(() => resetCoordinator());
 jest.mock("../../../platform/AppProvider", () => ({ useApp: jest.fn() }));
 jest.mock("../../../../modules/siwc-android", () => ({ getSiwc: jest.fn() }));
 jest.mock("../useProfileModels", () => ({
@@ -121,6 +123,8 @@ function context() {
       activeLearner: "a",
       learningScope: "scope-a",
       snapshot: () => base,
+      onScopeChange: () => () => {},
+      onAiConsentChange: () => () => {},
       chatMessages: () => [...chat],
       addChatMessage: (
         _learner: string,
@@ -158,7 +162,7 @@ test.each([true, false])(
         listener = cb;
         return { remove: jest.fn() };
       },
-      cancelResponse: jest.fn(),
+      cancelResponse: jest.fn(async (requestId: string) => { listener({ requestId, type: "cancelled" }); }),
     } as unknown as ReturnType<typeof getSiwc>);
     const ui = render(<AiExplanation />);
     fireEvent.changeText(ui.getByLabelText("AI에게 보낼 메시지"), "쉽게 알려 줘");
@@ -182,10 +186,11 @@ test("a dragged passage travels with the question", async () => {
   router.useLocalSearchParams.mockReturnValue({ conceptId: "c", quote: "후보키 중 하나" });
   jest.mocked(useApp).mockReturnValue(context());
   const startResponse = jest.fn(async () => ({ requestId: "r1" }));
+  let listener: (event: AiEvent) => void = () => {};
   jest.mocked(getSiwc).mockReturnValue({
     startResponse,
-    addListener: () => ({ remove: jest.fn() }),
-    cancelResponse: jest.fn(),
+    addListener: (_: string, callback: typeof listener) => { listener = callback; return { remove: jest.fn() }; },
+    cancelResponse: jest.fn(async (requestId: string) => { listener({ requestId, type: "cancelled" }); }),
   } as unknown as ReturnType<typeof getSiwc>);
   const ui = render(<AiExplanation />);
   expect(ui.getByText("후보키 중 하나")).toBeTruthy();
@@ -221,7 +226,7 @@ test("busy start keeps the user's question and never adopts the plan response", 
   jest.mocked(useApp).mockReturnValue(ctx);
   let listener: (e: AiEvent) => void = () => {};
   const startResponse = jest.fn().mockRejectedValue(Object.assign(Error("native wrapper"), { code: "response_busy" }));
-  const cancelResponse = jest.fn();
+  const cancelResponse = jest.fn(async (requestId: string) => { listener({ requestId, type: "cancelled" }); });
   jest.mocked(getSiwc).mockReturnValue({ startResponse, cancelResponse,
     addListener: (_: string, cb: typeof listener) => { listener = cb; return { remove: jest.fn() }; },
   } as unknown as ReturnType<typeof getSiwc>);
@@ -236,9 +241,14 @@ test("busy start keeps the user's question and never adopts the plan response", 
 
 test("a completed chat event after a reset cannot restore erased history before rerender", async () => {
   const ctx = context();
+  let scopeChanged = () => {};
+  jest.spyOn(ctx.repo, "onScopeChange").mockImplementation((listener) => {
+    scopeChanged = listener;
+    return () => {};
+  });
   jest.mocked(useApp).mockReturnValue(ctx);
   let listener: (e: AiEvent) => void = () => {};
-  const cancelResponse = jest.fn();
+  const cancelResponse = jest.fn(async (requestId: string) => { listener({ requestId, type: "cancelled" }); });
   jest.mocked(getSiwc).mockReturnValue({
     startResponse: jest.fn(async () => ({ requestId: "chat-id" })), cancelResponse,
     addListener: (_: string, cb: typeof listener) => { listener = cb; return { remove: jest.fn() }; },
@@ -247,7 +257,10 @@ test("a completed chat event after a reset cannot restore erased history before 
   fireEvent.changeText(ui.getByLabelText("AI에게 보낼 메시지"), "설명해 줘");
   fireEvent.press(ui.getByLabelText("보내기"));
   await act(async () => {});
-  Object.defineProperty(ctx.repo, "learningScope", { value: "scope-reset", configurable: true });
+  act(() => {
+    Object.defineProperty(ctx.repo, "learningScope", { value: "scope-reset", configurable: true });
+    scopeChanged();
+  });
   await act(async () => listener({ requestId: "chat-id", type: "completed", text: "stale explanation" }));
   expect(ctx.repo.chatMessages("c").some((m) => m.role === "assistant")).toBe(false);
   ui.rerender(<AiExplanation />);
