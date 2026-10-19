@@ -9,7 +9,7 @@
 
 - 온보딩의 ChatGPT 연결 버튼은 동의 뒤 바로 로그인으로 이어진다. 소개 문구와 띠 가장자리 표시도 수정했다. Jest 158개, lint·타입 검사가 당시 통과했다. 상세는 WORK_LOG의 V4.UX1.
 - 시연용 arm64 APK를 다시 빌드해 데이터 유지 설치 후 Metro 없이 실행했다. 크기 48,023,985 bytes, SHA256 `efdfbf0acade6fab8f13ca4e1e1ab5bda0632c625bc563976f587df8b3c3597f`. 로컬 release variant는 기본 debug key 서명이다.
-- 이 결과는 신규 계정 로그인, 물리 기기별 동작, 전용 외부 배포 서명의 검증으로 확대하지 않는다.
+- 이 결과는 신규 계정 로그인이나 물리 기기별 동작의 검증으로 확대하지 않는다.
 
 ## V4 최종 검수 수정 (2026-10-18, V4.FIX)
 
@@ -71,7 +71,7 @@
 - 타입·린트·Jest 97개·콘텐츠 구조, Kotlin 49개(SIWC35/Gap14), Android debug·AndroidTest 빌드 통과. APK는 API36 에뮬레이터에 기존 데이터 유지 설치했다.
 - 360dp/100%·200% 글씨에서 네 선택지 스크롤 도달과 기본 버튼 노출 검사 통과. 가로/100%는 실패, 재검사 중 native Fabric 크래시 관찰. 원인 미확정으로 **가로 회전 검증은 미완료**다.
 - 정답 글자 #207354 / band #E8F0EA 대비 4.966:1, 오답 5.797:1. 기존 강조색은 보존했다.
-- 실제 계정으로 동시 AI 요청·새 OAuth, 물리 기기·다른 런처·TalkBack·콘텐츠 정확성·배포 서명은 이번에 검증하지 않았다.
+- 실제 계정으로 동시 AI 요청·새 OAuth, 물리 기기·다른 런처·TalkBack·콘텐츠 정확성은 이번에 검증하지 않았다.
 
 ## V3 마무리 (2026-10-17, V3.END)
 
@@ -97,7 +97,6 @@
 | 실제 OAuth / AI response.completed | 미검증 |
 | 실기기(삼성 One UI 등) 카드·위젯 렌더링 | 미검증 |
 | 콘텐츠 개별 출처 대조 | 미완료·AI 초안 표시 |
-| 외부 배포 서명·EAS | 미설정 |
 
 아래는 이전 checkpoint 기록이다.
 
@@ -118,7 +117,6 @@
 | 실제 OAuth / AI response.completed | 미검증 |
 | 실제 기기 알림 도착 | 미검증 |
 | 콘텐츠 개별 출처 대조 | 미완료·AI 초안 표시 |
-| 외부 배포 서명·EAS | 미설정 |
 
 ## 검증 범위
 
@@ -130,11 +128,11 @@ Jest의 저장 테스트는 Node SQLite 실제 DB에 schema와 트랜잭션을 �
 
 ## 추후 메모
 
-실사용자 5명·피드백, 실제 계정·기기 검증, 외부 배포 증빙과 발표는 별도 과제 조건입니다. 자동 테스트를 실제 사용자 테스트 인원으로 세지 않습니다.
+신규 계정 인증, 다른 물리 기기에서의 동작과 콘텐츠 정확성은 현재 자동 검증 범위 밖입니다. 시연용 APK는 로컬 산출물이며 외부 다운로드 링크는 아직 없습니다.
 
 ## 화면 증거
 
-API36 ARM64 Development Build의 합성 학습 기록입니다. 개발 도구 버튼이 보이는 개발용 화면이며 실사용자 테스트 결과가 아닙니다.
+API36 ARM64 Development Build의 합성 학습 기록입니다. 개발 도구 버튼이 보이는 개발용 화면입니다.
 
 ![오늘 화면](screenshots/today.png)
 ![정답 확인](screenshots/quiz-result.png)
@@ -142,7 +140,7 @@ API36 ARM64 Development Build의 합성 학습 기록입니다. 개발 도구 �
 
 ## UI smoke 재현
 
-Metro를 8081에서 실행하고, BUILD 절차에 더해 `:app:assembleDebugAndroidTest`를 빌드하여 앱과 테스트 APK를 설치합니다. `TEUM_RESET_FIXTURES=1 bash scripts/native-smoke.sh`는 이름이 teum-api36인 에뮬레이터에서만 합성 학습 DB를 초기화하고 실행합니다. 개인 기기나 실사용자 데이터에 실행하지 않습니다. 개발용 첫 안내와 스크롤 제스처 안정화를 테스트에서 처리합니다.
+Metro를 8081에서 실행하고, BUILD 절차에 더해 `:app:assembleDebugAndroidTest`를 빌드하여 앱과 테스트 APK를 설치합니다. `TEUM_RESET_FIXTURES=1 bash scripts/native-smoke.sh`는 이름이 teum-api36인 에뮬레이터에서만 합성 학습 DB를 초기화하고 실행합니다. 다른 기기나 실제 학습 데이터에 실행하지 않습니다. 개발용 첫 안내와 스크롤 제스처 안정화를 테스트에서 처리합니다.
 
 큰 글씨·가로 탭은 API36 에뮬레이터에서 FIX.C1 이후 재확인했다. 실기기 제스처·실제 계정 흐름은 미검증이다.
 
