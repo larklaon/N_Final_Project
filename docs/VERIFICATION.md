@@ -1,5 +1,13 @@
 # 개발 검증 결과
 
+## V4 마무리 검수 (2026-10-19, FINAL.AUDIT)
+
+- 대상 `ea1b257`. 기본 `npm run check`(Jest158·타입·린트·콘텐츠·패치3)와 SIWC35/Gap17 Kotlin/JUnit 재실행, debug·AndroidTest APK 빌드 통과.
+- 추가 경계 재현에서 4건 확인: 동의 철회 뒤 대기 계획 전송, 대화 삭제 뒤 늦은 답변 저장, ID 반환 전 중지 무시, native 완료 이벤트와 busy 해제의 순서 불일치. Jest3·Kotlin1 fixture는 기대 동작 단언에서 실패했다.
+- 정상 검사 통과로 위 4건이 해소됐다고 해석하지 않는다. 앱 동작 코드는 수정하지 않았다. 상세 원인·위치·재현·수정 기준은 [FINAL_AUDIT](FINAL_AUDIT.md), 별도 [재현 자료](review-fixtures/final/README.md)를 따른다.
+- UI: 360dp/100% LayoutTest 통과. 200%는 긴 지문 뒤의 선택지를 스크롤 전에 찾는 사전 조건에서 자동 검사가 중단됐지만, 직접 스크롤 후 네 보기 모두 48dp 이상으로 도달함을 확인했다. 표시 설정은 복구했다.
+- 개발 APK 재실행 5/5(설정·퍼즐 왕복·세로 고정 포함), 현재 시연 APK의 Metro 없는 실행 2/2 통과. 실제 APK checksum·검사 경계·캡처 위치는 FINAL_AUDIT에 기록했다. 검사 뒤 기존 debug APK·8081 reverse·표시/회전 설정으로 복구했다.
+
 ## 제출 문서 정리 (2026-10-19, DOC.FINAL1)
 
 - 현재 소스를 대상으로 `npm run check`를 다시 실행했다. TypeScript·ESLint·Jest 158/158(25 suites)·콘텐츠 72개념/144틈새/72앱 문제·native patch fixture 3개가 통과했다. 문서·PPTX만 수정했으며 Android 앱과 APK는 다시 빌드하지 않았다.

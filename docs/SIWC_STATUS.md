@@ -11,6 +11,8 @@
 
 토큰은 네이티브 계층 안에서 관리하며 실제 연결 성공을 모의 응답으로 대체하지 않습니다. 위 표는 후속 WORK_LOG/VERIFICATION의 실제 계정 기록과 이번 자동 검증을 구분한 것입니다.
 
+2026-10-19 마무리 검수에서 native terminal 이벤트와 busy 해제의 순서 불일치(FINAL-R4)를 로컬 SSE fixture로 재현했습니다. 정상 프로토콜 검사 35개와 별개로 열린 수정 항목입니다. 전송 동의·채팅 취소 경계의 추가 3건과 함께 [FINAL_AUDIT](FINAL_AUDIT.md)에 기록했습니다.
+
 ## 구현 경계
 
 인증 HTTP·토큰 교환·ID 토큰 검증·토큰 저장·refresh·모델 목록·Responses SSE는 Kotlin에 있습니다. JS에는 opaque profile ID와 연결 상태·인증 결과, 모델·응답 텍스트 및 허용 형식의 비민감 오류 진단만 전달합니다. 토큰은 Android Keystore AES-GCM로 보호한 AtomicFile 안에 저장하며 자동 백업을 끕니다.

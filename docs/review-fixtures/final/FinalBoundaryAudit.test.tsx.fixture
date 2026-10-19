@@ -1,0 +1,101 @@
+import React from "react";
+import { Alert } from "react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import AskAi from "../../../../app/ai/[conceptId]";
+import { useApp } from "../../../platform/AppProvider";
+import { LearningRepository } from "../../../data/repositories/LearningRepository";
+import { database } from "../../../data/repositories/__tests__/database";
+import { getSiwc, type AiEvent } from "../../../../modules/siwc-android";
+import { beginChat, resetCoordinator } from "../requestCoordinator";
+import { requestPlan } from "../plan";
+
+jest.mock("../../../platform/AppProvider", () => ({ useApp: jest.fn() }));
+jest.mock("../../../../modules/siwc-android", () => ({ getSiwc: jest.fn() }));
+jest.mock("../useProfileModels", () => ({ useProfileModels: () => ({ models: [{ slug: "m", displayName: "M" }] }) }));
+jest.mock("expo-router", () => ({ useLocalSearchParams: () => ({ conceptId: "ds-queue" }), useRouter: () => ({ back: jest.fn() }) }));
+jest.mock("../../../components/ui", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { Pressable, Text } = jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    Button: ({ label, onPress }: { label: string; onPress: () => void }) => <Pressable onPress={onPress}><Text>{label}</Text></Pressable>,
+    IconButton: ({ label, onPress }: { label: string; onPress: () => void }) => <Pressable accessibilityLabel={label} onPress={onPress} />,
+    Message: ({ text }: { text: string }) => <Text>{text}</Text>,
+  };
+});
+
+beforeEach(() => resetCoordinator());
+afterEach(() => { resetCoordinator(); jest.restoreAllMocks(); });
+
+function setup() {
+  let id = 0;
+  const repo = new LearningRepository(database(), () => `final-${++id}`);
+  repo.selectProfile("p");
+  repo.updateSettings({ onboarded: true, aiConsentAt: 1 });
+  const context = { repo, snapshot: repo.snapshot(), auth: { status: "ready", profileId: "p" }, refresh: jest.fn(), refreshAuth: jest.fn().mockResolvedValue(undefined) } as unknown as ReturnType<typeof useApp>;
+  jest.mocked(useApp).mockReturnValue(context);
+  return repo;
+}
+function gateway() {
+  let listener: (event: AiEvent) => void = () => {};
+  const startResponse = jest.fn(async (_: string) => ({ requestId: "chat-final" }));
+  const cancelResponse = jest.fn(async (_: string) => {});
+  jest.mocked(getSiwc).mockReturnValue({ startResponse, cancelResponse,
+    addListener: (_: string, cb: typeof listener) => { listener = cb; return { remove: jest.fn() }; },
+  } as unknown as ReturnType<typeof getSiwc>);
+  return { startResponse, cancelResponse, complete: () => listener({ type: "completed", requestId: "chat-final", text: "늦게 도착한 답변" }) };
+}
+function send(ui: ReturnType<typeof render>) {
+  fireEvent.changeText(ui.getByLabelText("AI에게 보낼 메시지"), "큐를 쉽게 설명해 줘");
+  fireEvent.press(ui.getByLabelText("보내기"));
+}
+
+test("FINAL-R1: withdrawing consent while a plan is queued prevents dispatch", async () => {
+  const repo = setup();
+  const g = gateway();
+  g.startResponse.mockImplementation(async () => {
+    queueMicrotask(() => g.complete());
+    return { requestId: "chat-final" };
+  });
+  const release = await beginChat();
+  const pending = requestPlan(repo, { status: "ready", profileId: "p" }, [{ slug: "m", displayName: "M" }]);
+  const rejected = expect(pending).rejects.toThrow("plan_invalidated");
+  repo.updateSettings({ aiConsentAt: null, personalizationEnabled: false });
+  release();
+  await rejected;
+  expect(repo.plan()).toBeNull();
+  expect(g.startResponse.mock.calls.length).toBe(0);
+});
+
+test("FINAL-R2: deleting a conversation during a reply keeps the conversation empty", async () => {
+  const repo = setup();
+  const g = gateway();
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  const ui = render(<AskAi />);
+  send(ui);
+  await waitFor(() => expect(g.startResponse).toHaveBeenCalledTimes(1));
+  fireEvent.press(ui.getByLabelText("대화 지우기"));
+  act(() => alert.mock.calls.at(-1)?.[2]?.find((b) => b.text === "지우기")?.onPress?.());
+  expect(repo.chatMessages("ds-queue")).toHaveLength(0);
+  await act(async () => g.complete());
+  const messages = repo.chatMessages("ds-queue");
+  ui.unmount();
+  expect(messages).toHaveLength(0);
+  expect(g.cancelResponse).toHaveBeenCalledWith("chat-final");
+});
+
+test("FINAL-R3: stop before the native start promise resolves cancels the late owned request", async () => {
+  const repo = setup();
+  const g = gateway();
+  let started!: (value: { requestId: string }) => void;
+  g.startResponse.mockImplementation(() => new Promise((resolve) => { started = resolve; }));
+  const ui = render(<AskAi />);
+  send(ui);
+  await waitFor(() => expect(g.startResponse).toHaveBeenCalledTimes(1));
+  fireEvent.press(ui.getByText("답변 멈추기"));
+  await act(async () => { started({ requestId: "chat-final" }); });
+  await act(async () => g.complete());
+  const assistant = repo.chatMessages("ds-queue").filter((m) => m.role === "assistant");
+  ui.unmount();
+  expect({ cancelled: g.cancelResponse.mock.calls.map((call) => call[0]), assistantCount: assistant.length })
+    .toEqual({ cancelled: ["chat-final"], assistantCount: 0 });
+});

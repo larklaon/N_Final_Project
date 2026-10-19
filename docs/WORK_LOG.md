@@ -1,5 +1,14 @@
 # 개발 기록
 
+## 2026-10-19 — FINAL.AUDIT — V4 마무리 독립 검수
+
+- 상태: 검수 완료, 재현된 수정 대상 4건. 앱 동작 코드는 수정하지 않았다. 대상은 `ea1b257`이며 기존 V4 검수의 5건과 다른 요청 경계다.
+- P1: 대기 중 학습 계획이 동의 철회 뒤에도 전송됨. P2: 답변 중 대화 삭제 뒤 assistant 재생성, native ID 반환 전 중지 무시, terminal 이벤트에서 다음 native 요청이 busy로 거절될 수 있는 종료 순서.
+- 검증: npm check(타입·ESLint·Jest158/25 suites·콘텐츠72/144/72·patch3) 통과. SIWC35/Gap17 기본 JUnit 재실행, debug·AndroidTest 빌드·데이터 유지 설치 통과. 추가 Jest3·native1 재현은 모두 원하는 동작 단언에서 실패했고 docs/review-fixtures/final로 분리 보관했다.
+- UI: 360dp/100% LayoutTest 통과. 200%에서 긴 지문 때문에 보기 노드가 스크롤 전 없다는 자동 검사 전제 문제를 확인, 직접 세로 스크롤로 네 보기의 48dp 도달 확인. 앱 결함 수에는 넣지 않았다. font·밀도 복구, DB 초기화·계정 변경·정답 제출 없음.
+- 개발 APK 재실행5/5(설정·퍼즐 왕복·세로 고정 포함), 현 시연 APK(ca0dfcbe) Metro 없는 실행2/2 통과·앱 크래시 없음. 검사 뒤 시작 때의 debug APK·8081 reverse·표시/회전 설정으로 복구했다. 앱 소스·시연 APK 파일 변경 없음.
+- 상세: FINAL_AUDIT·VERIFICATION. 다음: FINAL-R1 동의 경계 → R2/R3 채팅 취소 → R4 native 종료 순서를 수정하고 fixture를 정상 회귀 검사로 전환한다.
+
 ## 2026-10-19 — DOC.SCOPE1 — 과제 시연 범위 정리
 
 - 상태: 제출용 자료 범위 수정 완료. 앱 동작은 이 변경에서 수정하지 않았다.
