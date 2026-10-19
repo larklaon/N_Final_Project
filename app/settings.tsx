@@ -20,6 +20,7 @@ import { getGap, type GapPreview } from "../modules/gap-android";
 import { enableGap, mutateLearningWithGap } from "../src/services/gap/sync";
 import { useProfileModels } from "../src/services/ai/useProfileModels";
 import { openSubscriptionUsage } from "../src/services/ai/subscriptionUsage";
+import { askToConnect, connectChatGpt } from "../src/services/ai/connect";
 import { dailyGoals, gapIntervals } from "../src/data/repositories/LearningRepository";
 import { colors, fonts, type } from "../src/theme/tokens";
 import { packOf } from "../src/data/content/packs";
@@ -220,21 +221,7 @@ export default function Settings() {
     }
   }
   function connect(profile: string | null, requestPlanConsent = false) {
-    Alert.alert(
-      "ChatGPT 연결 안내",
-      "개념·학습 요약·입력 질문을 OpenAI에 전송해 개인화 설명을 만들어요. ChatGPT 플랜 사용량이 적용돼요. 첫 연결은 현재 기기의 학습 기록과 연결돼요. AI 맞춤 학습은 설정에서 따로 켜요.",
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "동의하고 연결",
-          onPress: () =>
-            void run(async () => {
-              repo.updateSettings({ aiConsentAt: Date.now() });
-              await getSiwc().signIn(profile, requestPlanConsent);
-            }),
-        },
-      ],
-    );
+    askToConnect(() => void run(() => connectChatGpt(repo, profile, requestPlanConsent)));
   }
   function confirmReset(all: boolean) {
     Alert.alert(

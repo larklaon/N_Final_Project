@@ -463,6 +463,8 @@ export function Band({
   const { width: window } = useWindowDimensions();
   const [width, setWidth] = useState(window);
   const rise = Math.round(width * Math.tan((slant * Math.PI) / 180));
+  const angle = (Math.atan2(rise, width) * 180) / Math.PI;
+  const cover = width * 2;
   return (
     <View
       onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
@@ -476,29 +478,31 @@ export function Band({
         style,
       ]}
     >
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {/* The slanted edges are ink rectangles turned by the slant angle. Android paints the
+          edge of a rotated fill smoothly; border triangles came out as a staircase. */}
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { overflow: "hidden" }]}>
         <View style={{ flex: 1, backgroundColor: colors.band }} />
         <View
           style={[
-            s.corner,
+            s.slantCover,
             {
-              top: 0,
-              left: 0,
-              borderTopWidth: rise,
-              borderRightWidth: width,
-              borderTopColor: colors.ink,
+              top: rise - cover,
+              width: cover,
+              height: cover,
+              transformOrigin: "left bottom",
+              transform: [{ rotate: `${-angle}deg` }],
             },
           ]}
         />
         <View
           style={[
-            s.corner,
+            s.slantCover,
             {
-              bottom: 0,
-              right: 0,
-              borderBottomWidth: rise,
-              borderLeftWidth: width,
-              borderBottomColor: colors.ink,
+              bottom: -cover,
+              width: cover,
+              height: cover,
+              transformOrigin: "left top",
+              transform: [{ rotate: `${-angle}deg` }],
             },
           ]}
         />
@@ -794,12 +798,7 @@ const s = StyleSheet.create({
   darkFooter: { paddingTop: 8, paddingBottom: 16, alignItems: "center" },
   darkMeasureInner: { width: "100%", maxWidth: 600, gap: 4 },
   band: { position: "relative" },
-  corner: {
-    position: "absolute",
-    width: 0,
-    height: 0,
-    borderColor: "transparent",
-  },
+  slantCover: { position: "absolute", left: 0, backgroundColor: colors.ink },
   aiTag: {
     borderWidth: 1,
     borderColor: colors.mintText,

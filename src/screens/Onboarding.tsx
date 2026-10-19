@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { useRouter } from "expo-router";
 import {
   Band,
   BandBody,
@@ -14,18 +13,19 @@ import {
 import { SubjectList } from "../components/SubjectList";
 import { useApp } from "../platform/AppProvider";
 import { enableGap } from "../services/gap/sync";
+import { askToConnect, connectChatGpt } from "../services/ai/connect";
 import { colors, type } from "../theme/tokens";
 
 const goals = [3, 5, 10];
 const STEPS = 5;
 
 export function Onboarding() {
-  const { repo, snapshot, refresh } = useApp();
-  const router = useRouter();
+  const { repo, snapshot, refresh, refreshAuth } = useApp();
   const [step, setStep] = useState(0);
   const [goal, setGoal] = useState(5);
   const [cardError, setCardError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [connectError, setConnectError] = useState("");
 
   async function turnOnCards() {
     setBusy(true);
@@ -41,10 +41,23 @@ export function Onboarding() {
       refresh();
     }
   }
-  function finish(connect: boolean) {
+  function finish() {
     repo.updateSettings({ dailyGoal: goal, onboarded: true });
     refresh();
-    if (connect) router.push("/settings");
+  }
+  /** Straight to the ChatGPT sign-in; onboarding ends once the browser is on its way. */
+  function connect() {
+    askToConnect(() => {
+      setBusy(true);
+      setConnectError("");
+      connectChatGpt(repo, null)
+        .then(() => {
+          finish();
+          void refreshAuth();
+        })
+        .catch(() => setConnectError("ChatGPT에 연결하지 못했어요. 나중에 설정에서 다시 연결할 수 있어요."))
+        .finally(() => setBusy(false));
+    });
   }
 
   const steps = (
@@ -61,7 +74,7 @@ export function Onboarding() {
         <Band>
           <BandLabel>틈지식</BandLabel>
           <Text accessibilityRole="header" style={[type.answerLong, s.ink, { fontSize: 32, lineHeight: 42 }]}>
-            공부한다고{"\n"}착각하는 앱.
+            잠깐의 틈에{"\n"}스치는 지식.
           </Text>
           <BandBody>잠금 화면에서 스치고, 앱에서 맞춰요.</BandBody>
         </Band>
@@ -132,8 +145,8 @@ export function Onboarding() {
       header={steps}
       footer={
         <>
-          <PrimaryButton label="ChatGPT 연결하기" onPress={() => finish(true)} />
-          <TextLink tone="dark" label="나중에" onPress={() => finish(false)} />
+          <PrimaryButton label="ChatGPT 연결하기" disabled={busy} onPress={connect} />
+          <TextLink tone="dark" label="나중에" onPress={finish} />
         </>
       }
     >
@@ -143,6 +156,7 @@ export function Onboarding() {
         </Text>
         <BandBody>ChatGPT를 연결하면 계획을 짜 주고, 막힌 문제를 바로 물어볼 수 있어요.</BandBody>
       </Band>
+      {!!connectError && <DarkNote icon="alert-circle-outline">{connectError}</DarkNote>}
     </DarkScreen>
   );
 }
