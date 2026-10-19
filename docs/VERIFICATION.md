@@ -27,7 +27,7 @@
 ## 제출 문서 정리 (2026-10-19, DOC.FINAL1)
 
 - 현재 소스를 대상으로 `npm run check`를 다시 실행했다. TypeScript·ESLint·Jest 158/158(25 suites)·콘텐츠 72개념/144틈새/72앱 문제·native patch fixture 3개가 통과했다. 문서·PPTX만 수정했으며 Android 앱과 APK는 다시 빌드하지 않았다.
-- 8장 발표용 PPTX는 편집 가능한 텍스트와 실제 개발 화면 이미지를 넣고 패키지 무결성·슬라이드 배치 검사 및 재가져오기 검사를 통과했다. 이것은 PowerPoint 실기기 실행이나 외부 배포 검증이 아니다.
+- 11장 발표용 PPTX는 편집 가능한 텍스트, 실제 개발 화면 이미지, 슬라이드마다 발표자 노트를 담고 있으며 패키지 무결성 검사를 통과했다. 글꼴은 Hahmlet·IBM Plex Sans KR(Google Fonts)을 쓴다.
 
 ## V4 온보딩·화면 후속 수정과 시연 APK (2026-10-19, V4.UX1)
 
